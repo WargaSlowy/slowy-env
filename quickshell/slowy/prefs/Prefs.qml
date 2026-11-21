@@ -1,0 +1,1389 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import Quickshell.Services.UPower
+import Quickshell.Wayland
+import qs
+import qs.components
+import qs.settings
+import "../slots.js" as Slots
+
+// slowy settings: Super+I. Not a form but objects. On the left a column of Doto words, as in the power menu: the selection is large, with a red
+// dot. On the right the section live: home is a 3 x 3 bento layout, deck is a screen with a panel at the edge, windows is a desktop with gaps,
+// idle is a minute scale along which the screen turns off. Numbers are rings of dots (drag around, wheel), toggles are pills,
+// where white slides out. Up/down switch sections, Tab moves over objects, left/right change, esc closes.
+// Everything takes effect immediately: Theme.state (slowy.json) and Rules.store (rules.json, shared with demonshot) plus the needed apply.
+// Gaps/border/blur/shadows via Theme.apply: Rules.windows() would return the demonshot look to windows
+PanelWindow {
+    id: root
+
+    property int sel: 0
+    signal wallRequested // wallpaper is its own screen (wall/Walls), opened by shell.qml
+    readonly property var sections: ["HOME", "DECK", "BAR", "LOOK", "WINDOWS", "DISPLAY", "POWER", "INPUT", "IDLE", "SHELL", "LOGIN"]
+    readonly property string moves: "shift ←→ move · ↵ swap · del drop · drag"
+    readonly property string rings: "drag round the rings · scroll"
+    readonly property var hints: [moves, moves, moves, "", rings, rings, "↵ or click a mode", rings, "drag the marks", "", ""]
+    readonly property var r: Rules.store
+
+    // glyphs for home views, deck sections and the bar tray
+    readonly property var icons: ({
+        weather: "\u{F0595}", calendar: "\u{F00ED}", cpu: "\u{F061A}", ram: "\u{F035B}", gpu: "\u{F08AE}", disk: "\u{F02CA}",
+        battery: "\u{F0079}", buds: "\u{F02CB}", player: "\u{F040A}", system: "\u{F0128}", cat: "\u{F011B}", cava: "\u{F0EA2}",
+        clock: "\u{F0150}", perf: "\u{F04C5}", net: "\u{F05A9}", media: "\u{F075A}",
+        layout: "\u{F030C}", wifi: "\u{F05A9}", bluetooth: "\u{F00AF}", sound: "\u{F057E}", notes: "\u{F009A}",
+        mode: "\u{F04C5}", power: "\u{F0425}"
+    })
+    // round home widgets, the rest are 40 squares. ponytail: ram/gpu/disk/battery is a guess (rings); Home will decide, then adjust
+    readonly property var rounds: ["weather", "cpu", "ram", "gpu", "disk", "battery", "buds", "cava"]
+
+    // ---- opening: its own animation (slowy layers have no_anim in hypr). The section is remembered between openings ----
+    property bool shown: false
+    property real t: shown ? 1 : 0
+    Behavior on t { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+    function open() {
+        shown = true;
+        stage.forceActiveFocus();
+    }
+    function close() { shown = false; }
+    function toggle() { shown ? close() : open(); }
+    function go(i) {
+        sel = (i + sections.length) % sections.length;
+        stage.forceActiveFocus(); // focus in a hidden section would be lost
+    }
+
+    // ---- id lists in Theme.state: home widgets, deck sections, bar tray. We edit a copy; JsonAdapter writes the file on assignment.
+    // All return a new cursor ----
+    function edit(key, f) {
+        const a = Theme.state[key].slice();
+        f(a);
+        Theme.state[key] = a;
+    }
+    // one write updates both keys: slots hold the position, widgets the ordered ids
+    function applySlots(s) {
+        Theme.state.widgetSlots = s;
+        Theme.state.widgets = Slots.syncWidgets(s, Theme.state.widgets);
+    }
+    function move(key, i, to) {
+        if (to < 0 || to >= Theme.state[key].length || to === i) return i;
+        if (key === "widgets") {
+            const a = Theme.state.widgets, s = Slots.swap(Theme.state.widgetSlots, Theme.kinds, a[i], a[to]);
+            if (s) applySlots(s);
+            else edit(key, b => b.splice(to, 0, b.splice(i, 1)[0]));
+            return to;
+        }
+        edit(key, a => a.splice(to, 0, a.splice(i, 1)[0]));
+        return to;
+    }
+    function cut(key, i) {
+        const n = Theme.state[key].length;
+        if (i >= n) return i;
+        const id = key === "widgets" ? Theme.state.widgets[i] : null;
+        edit(key, a => a.splice(i, 1));
+        if (id) applySlots(Slots.clear(Theme.state.widgetSlots, id));
+        return Math.max(0, Math.min(i, n - 2));
+    }
+    // Enter on the selection: the next one from all that is not present yet. In an empty list, the first free one
+    function cycle(key, i, all) {
+        const a = Theme.state[key];
+        if (all.every(k => a.includes(k))) return i;
+        i = Math.min(i, a.length);
+        let j = all.indexOf(a[i]);
+        do j = (j + 1) % all.length; while (a.includes(all[j]));
+        const old = a[i], next = all[j];
+        edit(key, b => b[i] = next);
+        if (key === "widgets") {
+            let s = Slots.clear(Theme.state.widgetSlots, old);
+            const cell = Slots.firstFit(s, Theme.kinds, next);
+            if (cell >= 0) s = Slots.place(s, Theme.kinds, next, cell) ?? s;
+            applySlots(s);
+            return Theme.state.widgets.indexOf(next);
+        }
+        return i;
+    }
+    // tray: if present, remove; if not, place after the selection
+    function flip(key, w, cur) {
+        const a = Theme.state[key], i = a.indexOf(w);
+        if (i >= 0) {
+            edit(key, b => b.splice(i, 1));
+            if (key === "widgets") applySlots(Slots.clear(Theme.state.widgetSlots, w));
+            return Math.max(0, Math.min(i < cur ? cur - 1 : cur, a.length - 2));
+        }
+        const at = Math.min(cur + 1, a.length);
+        edit(key, b => b.splice(at, 0, w));
+        if (key === "widgets") {
+            const cell = Slots.firstFit(Theme.state.widgetSlots, Theme.kinds, w);
+            if (cell >= 0) {
+                const s = Slots.place(Theme.state.widgetSlots, Theme.kinds, w, cell);
+                if (s) applySlots(s);
+            }
+            return Theme.state.widgets.indexOf(w);
+        }
+        return at;
+    }
+    // list keys while focused: left/right select, shift left/right reorder, Enter/space change view, del remove. -1 means the key is not ours
+    function nav(e, key, cur, all) {
+        const n = Theme.state[key].length, d = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : 0;
+        if (d && (e.modifiers & Qt.ShiftModifier)) return move(key, cur, cur + d);
+        if (d) return n ? (cur + d + n) % n : 0;
+        if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) return cycle(key, cur, all);
+        if (e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) return cut(key, cur);
+        return -1;
+    }
+    SystemClock { id: clock; enabled: root.visible; precision: SystemClock.Minutes }
+    readonly property string hello: { const h = clock.date.getHours(); return h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
+    readonly property string who: (Theme.state.name || Quickshell.env("USER")).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+
+    // name and label of the current shell from its rice.json (the same one the Rice app renders)
+    property var meta: ({})
+    FileView { path: Quickshell.shellPath("rice.json"); onLoaded: try { root.meta = JSON.parse(text()); } catch (e) {} }
+    // "switch shell" only when there is something to choose from: other shells, folders with rice.json nearby (Demon's Shot...)
+    property int shells: 1
+    Process {
+        running: root.visible
+        command: [Quickshell.env("HOME") + "/.config/quickshell/rice/rice", "list"]
+        stdout: StdioCollector { onStreamFinished: root.shells = text.trim().split("\n").length }
+    }
+
+    // ---- login: which display manager comes up before the desktop. The helper runs through pkexec and only writes system
+    // state; the switch takes effect on reboot or logout, never by restarting the display manager inside a session ----
+    property string login: "default"
+    property bool loginReady: false
+    property bool loginBusy: false
+    property string loginError: ""
+    readonly property string loginHelper: Quickshell.shellPath("login")
+    function refreshLogin() {
+        loginStatus.running = true;
+        loginCheck.running = true;
+    }
+    function setLogin(target) {
+        if (target === root.login || root.loginBusy) return;
+        if (target === "slowy" && !root.loginReady) {
+            root.loginError = "sddm or the slowy theme is missing";
+            return;
+        }
+        root.loginError = "";
+        root.loginBusy = true;
+        loginApply.target = target;
+        loginApply.running = true;
+    }
+    Process {
+        id: loginStatus
+        command: ["/bin/sh", root.loginHelper, "status"]
+        stdout: StdioCollector { onStreamFinished: root.login = text.trim() || "default" }
+    }
+    Process {
+        id: loginCheck
+        command: ["/bin/sh", root.loginHelper, "check"]
+        stdout: StdioCollector { onStreamFinished: { const t = text.trim(); root.loginError = t === "ready" ? "" : "missing: " + t; } }
+        onExited: code => root.loginReady = code === 0
+    }
+    Process {
+        id: loginApply
+        property string target: ""
+        command: ["/usr/bin/pkexec", root.loginHelper, "apply", target]
+        stderr: StdioCollector { onStreamFinished: root.loginError = text.trim() }
+        onExited: code => {
+            root.loginBusy = false;
+            if (code === 0) root.loginError = "";
+            else if (!root.loginError) root.loginError = "cancelled or failed; nothing changed";
+            root.refreshLogin();
+        }
+    }
+    onVisibleChanged: if (visible) root.refreshLogin()
+
+    visible: t > 0
+    anchors { left: true; right: true; top: true; bottom: true }
+    exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: shown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.namespace: "slowy-prefs"
+
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.bg // solid: bright pieces of windows behind showed through at 5%
+        opacity: root.t
+        MouseArea { anchors.fill: parent; onClicked: stage.forceActiveFocus() } // outside click only clears focus; esc closes
+    }
+
+    Stage {
+        id: stage
+        opacity: root.t
+        focus: true
+        Keys.onPressed: e => {
+            if (e.key === Qt.Key_Up || e.key === Qt.Key_K) root.go(root.sel - 1);
+            else if (e.key === Qt.Key_Down || e.key === Qt.Key_J) root.go(root.sel + 1);
+            else if (e.key === Qt.Key_Right && stage.activeFocus) stage.nextItemInFocusChain(true)?.forceActiveFocus();
+            else if (e.key === Qt.Key_Escape) root.close();
+            else return;
+            e.accepted = true;
+        }
+
+        // sections: the selected one is large with a red dot (while the name is being typed the red is the caret and the dot turns white)
+        Column {
+            x: 150 - 30 * (1 - root.t)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 22
+            Repeater {
+                model: root.sections
+                Row {
+                    id: word
+                    required property string modelData
+                    required property int index
+                    readonly property bool on: root.sel === index
+                    spacing: 26
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: word.on
+                        width: 26
+                        height: 26
+                        radius: 13
+                        color: name.activeFocus ? Theme.fg : Theme.red
+                    }
+                    Num {
+                        text: word.modelData
+                        font.pixelSize: word.on ? 112 : 46
+                        color: word.on ? Theme.fg : Theme.mute
+                        Behavior on font.pixelSize { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                        Behavior on color { ColorAnimation { duration: Theme.t } }
+                    }
+                    TapHandler { onTapped: root.go(word.index) }
+                }
+            }
+        }
+
+        Row {
+            x: 150
+            anchors { bottom: parent.bottom; bottomMargin: 70 }
+            spacing: 34
+            Lb { text: "↑↓ section" }
+            Lb { text: "tab · ←→ change" }
+            Lb { visible: !!text; text: root.hints[root.sel] }
+            Lb { text: "esc close"; TapHandler { onTapped: root.close() } }
+        }
+
+        // ---- HOME: home at 168/220 scale, with the same views. Positions come from widgetSlots; click to select, another click or Enter
+        // for the next view, drag into a cell to place it. What does not fit in 3 x 3 is on the right as a pale outline ----
+        Page {
+            id: home
+            k: 0
+            caption: `home · bento 3 × 3 · ${used} of 9 cells`
+            readonly property var cells: Theme.state.widgets.map((id, i) => {
+                const a = (Theme.state.widgetSlots ?? []).indexOf(id);
+                return { id, i, row: a >= 0 ? Math.floor(a / 3) : 0, col: a >= 0 ? a % 3 : 0,
+                         span: Theme.kinds[id] ?? 1, fits: a >= 0 };
+            });
+            readonly property var placed: cells.filter(c => c.fits)
+            readonly property var off: cells.filter(c => !c.fits)
+            readonly property int used: placed.reduce((a, c) => a + c.span, 0)
+            readonly property var cur_: cells[cur] ?? null
+            property int cur: 0
+
+            function tap(i) {
+                grid.forceActiveFocus();
+                cur = cur === i ? root.cycle("widgets", i, Object.keys(Theme.kinds)) : i;
+            }
+            // dropped at grid point p: the widget lands in that cell, swapping with the occupant when both fit. Outside the grid nothing happens
+            function drop(id, p) {
+                if (p.x < 0 || p.y < 0 || p.x > grid.width || p.y > grid.height) return;
+                const at = Math.min(2, Math.floor(p.y / 184)) * 3 + Math.min(2, Math.floor(p.x / 184));
+                const s = Slots.place(Theme.state.widgetSlots, Theme.kinds, id, at);
+                if (!s) return;
+                if (!Theme.state.widgets.includes(id)) Theme.state.widgets = Theme.state.widgets.concat([id]);
+                applySlots(s);
+                cur = Theme.state.widgets.indexOf(id);
+            }
+
+            Row {
+                spacing: 60
+
+                Item {
+                    id: grid
+                    width: 536
+                    height: 536
+                    activeFocusOnTab: true
+                    Keys.onPressed: e => {
+                        const c = root.nav(e, "widgets", home.cur, Object.keys(Theme.kinds));
+                        if (c < 0) return;
+                        home.cur = c;
+                        e.accepted = true;
+                    }
+                    Repeater {
+                        model: 9
+                        Dots {
+                            required property int index
+                            x: index % 3 * 184
+                            y: Math.floor(index / 3) * 184
+                        }
+                    }
+                    Repeater {
+                        model: home.placed
+                        Tile {
+                            x: modelData.col * 184
+                            y: modelData.row * 184
+                        }
+                    }
+                }
+
+                Column {
+                    width: 404
+                    spacing: 12
+                    Lb { text: "cells" }
+                    Row {
+                        spacing: 10
+                        Num { id: usedN; text: home.used; font.pixelSize: 150 }
+                        Num { anchors.baseline: usedN.baseline; text: "/9"; font.pixelSize: 54; color: Theme.mute }
+                    }
+                    Lb {
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: !home.cur_ ? "empty · ↵ adds one" : `${home.cur_.id} · ${home.cur_.span} cell${home.cur_.span > 1 ? "s" : ""}${home.cur_.fits ? "" : " · off grid"}`
+                    }
+                    Item { width: 1; height: 40 }
+                    Lb { text: home.off.length ? `off grid · ${home.off.length}` : "everything fits" }
+                    Flow {
+                        width: parent.width
+                        spacing: 10
+                        Repeater {
+                            model: home.off
+                            Tile { cell: 84; gap: 8 }
+                        }
+                    }
+                }
+            }
+
+            Tray {
+                id: homeTray
+                ids: Object.keys(Theme.kinds)
+                icons: root.icons
+                used: Theme.state.widgets
+                dim: home.off.map(c => c.id)
+                widths: Theme.kinds
+                onToggled: key => home.cur = root.flip("widgets", key, home.cur)
+                onDropped: (key, x, y) => home.drop(key, grid.mapFromItem(homeTray, x, y))
+            }
+        }
+
+        // ---- DECK: screen, deck at the bottom center, quick settings on the right; both slide out on hovering over their edge.
+        // deck sections in order, as in the panel; the tray shows what exists ----
+        Page {
+            id: deck
+            k: 1
+            caption: `deck · ${Theme.state.deck.length} of ${Theme.decks.length} sections · bottom edge`
+            property int cur: 0
+            // section from is dragged (-1 means none): dx is the cursor shift in design px, at is its place in the strip, to is where it will land
+            property int from: -1
+            property real dx: 0
+            readonly property real at: Math.max(10, Math.min(10 + (Theme.state.deck.length - 1) * 104, 10 + from * 104 + dx))
+            readonly property int to: Math.round((at - 10) / 104)
+
+            Row {
+                spacing: 40
+
+                Mini {
+                    // edges that catch the cursor: deck at the bottom, quick settings on the right
+                    Seg {
+                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 8 }
+                        width: 320
+                        height: 4
+                        n: 24
+                        f: Theme.state.deckHover ? 1 : 0
+                    }
+                    Seg {
+                        anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                        width: 4
+                        height: 240
+                        n: 16
+                        vertical: true
+                        f: Theme.state.quickHover ? 1 : 0
+                    }
+
+                    Rectangle {
+                        id: strip
+                        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 30 }
+                        width: Math.max(1, Theme.state.deck.length) * 104 + 20
+                        height: 116
+                        radius: 40
+                        color: Theme.s1
+                        border { width: 1; color: strip.activeFocus ? Theme.fg : Theme.s2 }
+                        Behavior on width { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                        activeFocusOnTab: true
+                        Keys.onPressed: e => {
+                            const c = root.nav(e, "deck", deck.cur, Theme.decks);
+                            if (c < 0) return;
+                            deck.cur = c;
+                            e.accepted = true;
+                        }
+
+                        Lb { visible: !Theme.state.deck.length; anchors.centerIn: parent; text: "empty" }
+                        Repeater {
+                            model: Theme.state.deck
+                            Item {
+                                id: ds
+                                required property string modelData
+                                required property int index
+                                readonly property bool on: deck.cur === index
+                                readonly property bool hot: on && strip.activeFocus
+                                // while dragging: this one follows the cursor, those between it and the drop place move one step toward its place
+                                readonly property int slot: deck.from < 0 ? index
+                                    : index > deck.from && index <= deck.to ? index - 1
+                                    : index < deck.from && index >= deck.to ? index + 1 : index
+                                x: dd.active ? deck.at : 10 + slot * 104
+                                width: 104
+                                height: strip.height
+                                z: dd.active ? 1 : 0
+                                Behavior on x {
+                                    enabled: !dd.active
+                                    NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide }
+                                }
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: 10
+                                    Rectangle {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: 56
+                                        height: 56
+                                        radius: 28
+                                        color: ds.hot ? Theme.fg : Theme.s2
+                                        border { width: ds.on && !ds.hot ? 1 : 0; color: Theme.fg }
+                                        Icon { anchors.centerIn: parent; text: root.icons[ds.modelData] ?? ""; font.pixelSize: 24; color: ds.hot ? Theme.ink : Theme.fg }
+                                    }
+                                    Lb { anchors.horizontalCenter: parent.horizontalCenter; text: ds.modelData; px: 10; color: ds.on ? Theme.fg : Theme.grey }
+                                }
+                                TapHandler {
+                                    onTapped: {
+                                        strip.forceActiveFocus();
+                                        deck.cur = deck.cur === ds.index ? root.cycle("deck", ds.index, Theme.decks) : ds.index;
+                                    }
+                                }
+                                DragHandler {
+                                    id: dd
+                                    target: null
+                                    yAxis.enabled: false
+                                    // without target the shift is in scene px, while Stage is scaled
+                                    onActiveTranslationChanged: deck.dx = activeTranslation.x / Theme.s
+                                    onActiveChanged: {
+                                        if (active) {
+                                            deck.cur = ds.index;
+                                            deck.from = ds.index;
+                                            return;
+                                        }
+                                        // the drop happens after the signal: a list change recreates the sections, including this one
+                                        const from = deck.from, to = deck.to;
+                                        Qt.callLater(() => {
+                                            deck.from = -1;
+                                            deck.cur = root.move("deck", from, to);
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    spacing: 14
+                    Toggle { width: 200; text: "deck · hover"; on: Theme.state.deckHover; onFlip: Theme.state.deckHover = !Theme.state.deckHover }
+                    Toggle { width: 200; text: "quick · hover"; on: Theme.state.quickHover; onFlip: Theme.state.quickHover = !Theme.state.quickHover }
+                    Lb { topPadding: 6; text: "bottom edge · right edge"; px: 10 }
+                }
+            }
+
+            Tray {
+                ids: Theme.decks
+                icons: root.icons
+                used: Theme.state.deck
+                onToggled: key => deck.cur = root.flip("deck", key, deck.cur)
+            }
+        }
+
+        // ---- BAR: bar tray as a column, as in the bar, in order from top to bottom; labels on the side. The tray shows what exists ----
+        Page {
+            id: bar
+            k: 2
+            caption: `bar · ${Theme.state.bar.length} of ${Theme.bars.length} in the tray · left edge`
+            property int cur: 0
+            // from is dragged (-1 means none): dy is the cursor shift in design px, at is its place in the column, to is where it will land
+            property int from: -1
+            property real dy: 0
+            readonly property real at: Math.max(10, Math.min(10 + (Theme.state.bar.length - 1) * 68, 10 + from * 68 + dy))
+            readonly property int to: Math.round((at - 10) / 68)
+
+            Row {
+                spacing: 200
+
+                Rectangle {
+                    id: col
+                    width: 88
+                    height: Math.max(1, Theme.state.bar.length) * 68 + 20
+                    radius: 44
+                    color: Theme.s1
+                    border { width: 1; color: col.activeFocus ? Theme.fg : Theme.s2 }
+                    Behavior on height { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                    activeFocusOnTab: true
+                    Keys.onPressed: e => {
+                        const c = root.nav(e, "bar", bar.cur, Theme.bars);
+                        if (c < 0) return;
+                        bar.cur = c;
+                        e.accepted = true;
+                    }
+
+                    Lb { visible: !Theme.state.bar.length; anchors.centerIn: parent; text: "empty"; px: 10 }
+                    Repeater {
+                        model: Theme.state.bar
+                        Item {
+                            id: bs
+                            required property string modelData
+                            required property int index
+                            readonly property bool on: bar.cur === index
+                            readonly property bool hot: on && col.activeFocus
+                            readonly property int slot: bar.from < 0 ? index
+                                : index > bar.from && index <= bar.to ? index - 1
+                                : index < bar.from && index >= bar.to ? index + 1 : index
+                            y: bd.active ? bar.at : 10 + slot * 68
+                            width: col.width
+                            height: 68
+                            z: bd.active ? 1 : 0
+                            Behavior on y {
+                                enabled: !bd.active
+                                NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide }
+                            }
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 52
+                                height: 52
+                                radius: 26
+                                color: bs.hot ? Theme.fg : Theme.s2
+                                border { width: bs.on && !bs.hot ? 1 : 0; color: Theme.fg }
+                                Icon { anchors.centerIn: parent; text: root.icons[bs.modelData] ?? ""; font.pixelSize: 22; color: bs.hot ? Theme.ink : Theme.fg }
+                            }
+                            Lb { x: parent.width + 24; anchors.verticalCenter: parent.verticalCenter; text: bs.modelData; px: 10; color: bs.on ? Theme.fg : Theme.grey }
+                            TapHandler {
+                                onTapped: {
+                                    col.forceActiveFocus();
+                                    bar.cur = bar.cur === bs.index ? root.cycle("bar", bs.index, Theme.bars) : bs.index;
+                                }
+                            }
+                            DragHandler {
+                                id: bd
+                                target: null
+                                xAxis.enabled: false
+                                onActiveTranslationChanged: bar.dy = activeTranslation.y / Theme.s
+                                onActiveChanged: {
+                                    if (active) {
+                                        bar.cur = bs.index;
+                                        bar.from = bs.index;
+                                        return;
+                                    }
+                                    const from = bar.from, to = bar.to;
+                                    Qt.callLater(() => {
+                                        bar.from = -1;
+                                        bar.cur = root.move("bar", from, to);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    spacing: 14
+                    Pick {
+                        label: "style"
+                        opts: ["slowy", "vdx"]
+                        cur: Math.max(0, ["slowy", "vdx"].indexOf(Theme.state.barStyle))
+                        onPicked: i => Theme.state.barStyle = ["slowy", "vdx"][i]
+                    }
+                    FontPick {
+                        label: "bar font"
+                        opts: Theme.fontNames
+                        cur: Math.max(0, Theme.fontNames.indexOf(Theme.state.barFont))
+                        onPicked: i => Theme.state.barFont = Theme.fontNames[i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "bar radius"
+                        opts: ["0", "8", "16", "24"]
+                        cur: Math.max(0, [0, 8, 16, 24].indexOf(Theme.state.barRadius))
+                        onPicked: i => Theme.state.barRadius = [0, 8, 16, 24][i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "bar border"
+                        opts: ["0", "1", "2", "3"]
+                        cur: Math.max(0, [0, 1, 2, 3].indexOf(Theme.state.barBorder))
+                        onPicked: i => Theme.state.barBorder = [0, 1, 2, 3][i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "pill height"
+                        opts: ["32", "36", "40"]
+                        cur: Math.max(0, [32, 36, 40].indexOf(Theme.state.pillHeight))
+                        onPicked: i => Theme.state.pillHeight = [32, 36, 40][i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "top gap"
+                        opts: ["0", "8", "16", "24"]
+                        cur: Math.max(0, [0, 8, 16, 24].indexOf(Theme.state.topGap))
+                        onPicked: i => Theme.state.topGap = [0, 8, 16, 24][i]
+                    }
+                    Lb { visible: Theme.state.barStyle === "vdx"; topPadding: 6; text: "vdx island"; px: 10 }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "icon size"
+                        opts: ["small", "medium", "large"]
+                        cur: Math.max(0, [0, 2, 4].indexOf(Theme.state.barIconGrow))
+                        onPicked: i => Theme.state.barIconGrow = [0, 2, 4][i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx"
+                        label: "hub width"
+                        opts: ["360", "400", "440"]
+                        cur: Math.max(0, [360, 400, 440].indexOf(Theme.state.hubWidth))
+                        onPicked: i => Theme.state.hubWidth = [360, 400, 440][i]
+                    }
+                    Toggle {
+                        visible: Theme.state.barStyle === "vdx"
+                        width: 200; text: "show clock"; on: Theme.state.showClock
+                        onFlip: Theme.state.showClock = !Theme.state.showClock
+                    }
+                    Toggle {
+                        visible: Theme.state.barStyle === "vdx"
+                        width: 200; text: "notice dot"; on: Theme.state.noticeDot
+                        onFlip: Theme.state.noticeDot = !Theme.state.noticeDot
+                    }
+                    Toggle {
+                        visible: Theme.state.barStyle === "vdx"
+                        width: 200; text: "hub player"; on: Theme.state.hubPlayer
+                        onFlip: Theme.state.hubPlayer = !Theme.state.hubPlayer
+                    }
+                    Toggle { width: 200; text: "window title"; on: Theme.state.barTitle; onFlip: Theme.state.barTitle = !Theme.state.barTitle }
+                    Lb { topPadding: 6; text: "above the clock"; px: 10 }
+                }
+            }
+
+            Tray {
+                ids: Theme.bars
+                icons: root.icons
+                used: Theme.state.bar
+                onToggled: key => bar.cur = root.flip("bar", key, bar.cur)
+            }
+        }
+
+        // ---- LOOK: home in miniature follows the toggles; the name goes into a pill ----
+        Page {
+            id: look
+            k: 3
+            caption: "look · the home screen, live"
+            property bool dim: false // colon is dimmed
+            Timer { running: look.visible && root.visible && Theme.state.blink; interval: 500; repeat: true; onTriggered: look.dim = !look.dim }
+
+            Row {
+                spacing: 40
+
+                Mini {
+                    Row {
+                        x: 60
+                        y: 52
+                        Num { id: hrs; text: Theme.hh(clock.date); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize * 0.4 }
+                        Num { text: ":"; font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize * 0.4; opacity: Theme.state.blink && look.dim ? 0.2 : 1 }
+                        Num { text: Qt.formatTime(clock.date, "mm"); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize * 0.4 }
+                        Lb { visible: !Theme.state.clock24; anchors.baseline: hrs.baseline; leftPadding: 12; text: clock.date.getHours() < 12 ? "am" : "pm" }
+                    }
+                    Lb { x: 64; y: 172 + parent.textDrop; text: Qt.locale("en_US").toString(clock.date, "dddd · d MMMM"); px: 11; font.family: Theme.state.metaFont }
+                    Text {
+                        x: 62
+                        y: 232 + parent.textDrop
+                        textFormat: Text.StyledText
+                        text: `${root.hello},<br><font color="${Theme.grey}">${root.who}.</font>`
+                        font { family: Theme.state.greetFont; pixelSize: 30; weight: Font.Light }
+                        lineHeight: 1.1
+                        color: Theme.fg
+                    }
+                    Lb { x: 64; y: 300 + parent.textDrop; text: "0 notifications"; px: 9; font.family: Theme.state.metaFont }
+                    // Slowy strips: volume on the right, progress at the bottom
+                    Seg { visible: Theme.state.edges; x: parent.width - 12; y: 140; width: 4; height: 200; n: 12; f: 0.6; vertical: true }
+                    Seg { visible: Theme.state.edges; x: 230; y: parent.height - 10; width: 300; height: 4; n: 24; f: 0.4 }
+                }
+
+                Column {
+                    spacing: 14
+                    Pick {
+                        label: "scheme"
+                        opts: Theme.schemeNames
+                        cur: Math.max(0, Theme.schemeNames.indexOf(Theme.state.scheme))
+                        onPicked: i => { Theme.state.scheme = Theme.schemeNames[i]; Theme.apply() }
+                    }
+                    Toggle { width: 200; text: "light"; on: Theme.light; onFlip: Theme.state.light = !Theme.state.light }
+                    Toggle { width: 200; text: "24 hours"; on: Theme.state.clock24; onFlip: Theme.state.clock24 = !Theme.state.clock24 }
+                    Toggle { width: 200; text: "blink"; on: Theme.state.blink; onFlip: Theme.state.blink = !Theme.state.blink }
+                    Toggle { width: 200; text: "edges"; on: Theme.state.edges; onFlip: Theme.state.edges = !Theme.state.edges }
+                    Act {
+                        icon: "\u{F02E9}"
+                        text: "wallpaper"
+                        onHit: {
+                            root.close();
+                            root.wallRequested();
+                        }
+                    }
+                }
+            }
+
+            // clock size and the three home text groups; each font opens a full-name list above the control
+            Row {
+                spacing: 20
+                z: 1
+                FontPick {
+                    label: "clock"
+                    opts: Theme.fontNames
+                    cur: Math.max(0, Theme.fontNames.indexOf(Theme.state.clockFont))
+                    onPicked: i => Theme.state.clockFont = Theme.fontNames[i]
+                }
+                FontPick {
+                    label: "greet"
+                    opts: Theme.fontNames
+                    cur: Math.max(0, Theme.fontNames.indexOf(Theme.state.greetFont))
+                    onPicked: i => Theme.state.greetFont = Theme.fontNames[i]
+                }
+                FontPick {
+                    label: "meta"
+                    opts: Theme.fontNames
+                    cur: Math.max(0, Theme.fontNames.indexOf(Theme.state.metaFont))
+                    onPicked: i => Theme.state.metaFont = Theme.fontNames[i]
+                }
+                Dial {
+                    label: "clock size"; size: 80
+                    from: 80; to: 520; step: 10
+                    value: Theme.state.clockSize
+                    onMoved: v => Theme.state.clockSize = v
+                }
+            }
+
+            // name in the greeting; empty means $USER
+            Rectangle {
+                width: 760
+                height: 72
+                radius: 36
+                color: Theme.s2
+                border { width: name.activeFocus ? 1 : 0; color: Theme.fg }
+                Lb { id: nameL; x: 30; anchors.verticalCenter: parent.verticalCenter; text: "name"; color: name.activeFocus ? Theme.fg : Theme.grey }
+                TextInput {
+                    id: name
+                    anchors { left: nameL.right; leftMargin: 24; right: parent.right; rightMargin: 30; verticalCenter: parent.verticalCenter }
+                    text: Theme.state.name
+                    maximumLength: 24
+                    activeFocusOnTab: true
+                    font { family: Theme.ui; pixelSize: 24 }
+                    color: Theme.fg
+                    selectionColor: Theme.s3
+                    clip: true
+                    onTextEdited: Theme.state.name = text
+                    cursorDelegate: Rectangle {
+                        width: 2
+                        color: name.activeFocus ? Theme.red : "transparent"
+                        Timer { running: name.activeFocus; interval: 500; repeat: true; onTriggered: parent.opacity = 1 - parent.opacity }
+                    }
+                    Text { visible: !name.text; text: Quickshell.env("USER"); font: name.font; color: Theme.mute }
+                    Keys.onPressed: e => {
+                        if (e.key === Qt.Key_Up || e.key === Qt.Key_Down) root.go(root.sel + (e.key === Qt.Key_Up ? -1 : 1));
+                        else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Return || e.key === Qt.Key_Enter) stage.forceActiveFocus();
+                        else return;
+                        e.accepted = true;
+                    }
+                }
+            }
+        }
+
+        // ---- WINDOWS: desktop with two windows using live ring values. Window animation only if motion is on ----
+        Page {
+            k: 4
+            caption: `windows · hyprland · gaps ${gIn.v} / ${gOut.v} · border ${bord.v} · rounding ${rnd.v}`
+
+            Row {
+                spacing: 40
+
+                Mini {
+                    id: desk
+                    Repeater {
+                        model: 2
+                        Rectangle {
+                            id: wnd
+                            required property int index
+                            readonly property real o: gOut.v * desk.k
+                            readonly property real l: 78 * desk.k + o // bar 64 + margin 14
+                            readonly property real w: (desk.width - l - o - 2 * gIn.v * desk.k) / 2
+                            x: index ? l + w + 2 * gIn.v * desk.k : l
+                            y: o
+                            width: w
+                            height: desk.height - 2 * o
+                            radius: rnd.v * desk.k
+                            color: Theme.s1
+                            border { width: bord.v ? Math.max(1, bord.v * desk.k) : 0; color: index ? Theme.s3 : Theme.fg }
+                            Behavior on x { enabled: root.r.motion; NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                            Behavior on y { enabled: root.r.motion; NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                            Behavior on width { enabled: root.r.motion; NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                            Behavior on height { enabled: root.r.motion; NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+
+                            Column {
+                                x: 20
+                                y: 20
+                                spacing: 9
+                                Lb { text: wnd.index ? "zen" : "kitty"; px: 10; color: wnd.index ? Theme.mute : Theme.grey }
+                                Repeater {
+                                    model: [0.7, 0.45, 0.85, 0.3, 0.6, 0.5]
+                                    Rectangle {
+                                        required property real modelData
+                                        width: (wnd.width - 40) * modelData
+                                        height: 5
+                                        radius: 2.5
+                                        color: Theme.s3
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ponytail: blur and shadows are not visible in the layout (flat black), only the toggles
+                Column {
+                    spacing: 14
+                    Toggle { width: 200; text: "blur"; on: root.r.blur; onFlip: { root.r.blur = !root.r.blur; Theme.apply(); } }
+                    Toggle { width: 200; text: "shadow"; on: root.r.shadow; onFlip: { root.r.shadow = !root.r.shadow; Theme.apply(); } }
+                    Toggle { width: 200; text: "motion"; on: root.r.motion; onFlip: { root.r.motion = !root.r.motion; Rules.motion(); } }
+                }
+            }
+
+            Row {
+                spacing: 40
+                Dial { id: gIn; label: "gaps in"; to: 30; value: root.r.gapsIn; onMoved: v => { root.r.gapsIn = v; Theme.apply(); } }
+                Dial { id: gOut; label: "gaps out"; to: 60; value: root.r.gapsOut; onMoved: v => { root.r.gapsOut = v; Theme.apply(); } }
+                Dial { id: bord; label: "border"; to: 6; n: 24; value: root.r.border; onMoved: v => { root.r.border = v; Theme.apply(); } }
+                Dial { id: rnd; label: "rounding"; to: 40; value: Theme.state.rounding; onMoved: v => Theme.state.rounding = v } // shell.qml calls Theme.apply itself
+            }
+        }
+
+        // ---- DISPLAY: monitor picker, brightness as a large ring, screen as dots, with scale dots larger and sparser ----
+        Page {
+            id: disp
+            k: 5
+            property int monIdx: 0
+            readonly property var mon: Quickshell.screens[monIdx]
+            caption: `display · ${mon.name.toLowerCase()} · ${Rules.hz} hz`
+
+            Row {
+                spacing: 60
+                Column {
+                    Pick {
+                        label: "monitor"
+                        opts: Quickshell.screens.map(s => s.name)
+                        cur: disp.monIdx
+                        onPicked: i => { disp.monIdx = i }
+                    }
+                    visible: Sys.hasBri
+                    spacing: 22
+                    Dial { anchors.horizontalCenter: parent.horizontalCenter; size: 340; n: 60; live: true; label: "brightness"; value: Math.round(Sys.bri * 100); onMoved: v => Sys.setBri(v / 100) }
+                    // brightness key step: divisions per scale (Backlight.steps)
+                    Pick { anchors.horizontalCenter: parent.horizontalCenter; label: "step"; opts: ["2.5%", "5%", "10%"]; cur: [40, 20, 10].indexOf(Theme.state.briSteps); onPicked: i => Theme.state.briSteps = [40, 20, 10][i] }
+                }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 22
+                    Rectangle {
+                        width: 420
+                        height: 262
+                        radius: 24
+                        color: Theme.bg
+                        border { width: 1; color: Theme.s3 }
+                        Image {
+                            readonly property real p: 5 * Rules.scale
+                            anchors { fill: parent; margins: 14 }
+                            fillMode: Image.Tile
+                            source: "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${p}" height="${p}"><circle cx="${p / 2}" cy="${p / 2}" r="${p * 0.2}" fill="#${Theme.hex(Theme.mute)}"/></svg>`)
+                        }
+                    }
+                    Row {
+                        spacing: 14
+                        Num { id: resW; text: Rules.mon.w ? Math.round(Rules.mon.w / Math.max(Rules.scale, 1)) : "--"; font.pixelSize: 72 }
+                        Num { anchors.baseline: resW.baseline; text: "×"; font.pixelSize: 40; color: Theme.mute }
+                        Num { anchors.baseline: resW.baseline; text: Rules.mon.h ? Math.round(Rules.mon.h / Math.max(Rules.scale, 1)) : "--"; font.pixelSize: 72 }
+                    }
+                    Lb { text: "logical pixels" }
+                }
+            }
+            Row {
+                spacing: 24
+                Pick { label: "scale"; opts: Rules.scales; cur: Rules.scaleIdx; onPicked: i => Rules.setScale(i) }
+                Pick { label: "hz"; opts: Rules.rates.map(String); cur: Rules.rates.indexOf(Rules.refreshHz); onPicked: i => { root.r.refresh = Rules.rates[i]; Rules.monitor(); } }
+            }
+            Row {
+                spacing: 40
+                Toggle { anchors.verticalCenter: parent.verticalCenter; text: "night light"; on: Sys.night; onFlip: Sys.toggleNight() }
+                Dial { label: "warmth · k"; from: 2500; to: 6500; step: 100; value: root.r.warmth; onMoved: v => { root.r.warmth = v; if (root.r.night) Rules.night(); } }
+            }
+        }
+
+        // ---- POWER: power modes (Rules.modes): four circles, the ring lights by strength, the selected one is white.
+        // ultra is power saver and also 60 Hz, without animations, blur or shadows over the settings ----
+        Page {
+            k: 6
+            caption: `power · ${Rules.modes[Rules.mode].what} · ${Rules.hz} hz`
+
+            Row {
+                spacing: 32
+                Repeater {
+                    model: Rules.modes.slice(0, Rules.modeCount)
+                    Rectangle {
+                        id: pc
+                        required property var modelData
+                        required property int index
+                        readonly property bool on: Rules.mode === index
+                        width: 230
+                        height: 230
+                        radius: 115
+                        color: on ? Theme.fg : Theme.s1
+                        border { width: activeFocus ? 2 : 1; color: activeFocus || on ? Theme.fg : Theme.s2 }
+                        Behavior on color { ColorAnimation { duration: Theme.t } }
+                        activeFocusOnTab: true
+                        Keys.onPressed: e => {
+                            if (e.key !== Qt.Key_Return && e.key !== Qt.Key_Enter && e.key !== Qt.Key_Space) return;
+                            Rules.setMode(index);
+                            e.accepted = true;
+                        }
+                        Ring { anchors { fill: parent; margins: 14 } n: 40; dot: 6; f: (pc.index + 1) / 4; on: pc.on ? Theme.ink : Theme.fg; off: pc.on ? Theme.mute : Theme.s3 }
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 10
+                            Num { anchors.horizontalCenter: parent.horizontalCenter; text: pc.modelData.short; font.pixelSize: 54; color: pc.on ? Theme.ink : Theme.fg }
+                            Lb { anchors.horizontalCenter: parent.horizontalCenter; text: pc.modelData.name; color: pc.on ? Theme.ink : Theme.grey }
+                        }
+                        TapHandler { onTapped: Rules.setMode(pc.index) }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    }
+                }
+            }
+            Lb { text: Rules.store.ultra ? `ultra · ${Rules.rates[0]} hz, no motion, no blur, no shadows — your settings come back when you leave` : "cpu profile only · hz, motion and looks stay yours" }
+            Lb { visible: !PowerProfiles.hasPerformanceProfile; text: "no performance profile on this machine" }
+        }
+
+        // ---- INPUT: holding a key gives the first dot immediately, then a delay pause, then rate per second; on live rings ----
+        Page {
+            id: inp
+            k: 7
+            caption: "input · keyboard · touchpad"
+            property int n: 0 // how many are "typed"; 0 means the key is released
+            Timer {
+                running: inp.visible && root.visible
+                repeat: true
+                interval: inp.n === 0 ? 700 : inp.n === 1 ? delay.v : 1000 / rate.v
+                onTriggered: inp.n = (inp.n + 1) % 41
+            }
+
+            Row {
+                spacing: 30
+                Rectangle {
+                    width: 110
+                    height: 110
+                    radius: 30
+                    color: inp.n ? Theme.fg : Theme.s1
+                    border { width: 1; color: Theme.s2 }
+                    Num { anchors.centerIn: parent; text: "A"; font.pixelSize: 54; color: inp.n ? Theme.ink : Theme.fg }
+                }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 16
+                    Row {
+                        spacing: 6
+                        Repeater {
+                            model: 40
+                            Rectangle {
+                                required property int index
+                                width: 14
+                                height: 14
+                                radius: 7
+                                color: index < inp.n ? Theme.fg : Theme.s2
+                            }
+                        }
+                    }
+                    Lb { text: `hold a key · first, ${delay.v} ms, then ${rate.v} a second` }
+                }
+            }
+            Row {
+                spacing: 40
+                Dial { id: delay; label: "delay · ms"; from: 150; to: 600; step: 10; value: root.r.repeatDelay; onMoved: v => { root.r.repeatDelay = v; Rules.input(); } }
+                Dial { id: rate; label: "rate · /s"; from: 10; to: 60; value: root.r.repeatRate; onMoved: v => { root.r.repeatRate = v; Rules.input(); } }
+                Dial { label: "scroll · %"; from: 10; to: 100; step: 5; value: root.r.scroll; onMoved: v => { root.r.scroll = v; Rules.input(); } }
+                Dial { label: "pointer"; from: -100; to: 100; step: 5; value: root.r.sens; onMoved: v => { root.r.sens = v; Rules.input(); } }
+            }
+            Row {
+                spacing: 20
+                Toggle { text: "natural scroll"; on: root.r.natural; onFlip: { root.r.natural = !root.r.natural; Rules.input(); } }
+                Toggle { text: "tap to click"; on: root.r.tap; onFlip: { root.r.tap = !root.r.tap; Rules.input(); } }
+                Toggle { text: "off while typing"; on: root.r.typingOff; onFlip: { root.r.typingOff = !root.r.typingOff; Rules.input(); } }
+                Toggle { text: "flat accel"; on: root.r.flat; onFlip: { root.r.flat = !root.r.flat; Rules.input(); } }
+            }
+            Pick { label: "layout switch"; opts: Rules.switches.map(s => s[0]); cur: root.r.kbSwitch; onPicked: i => { root.r.kbSwitch = i; Rules.input(); } }
+        }
+
+        // ---- IDLE: minute scale without input. Dots dim on every event: awake to locked to screen off to asleep.
+        // Labels are dragged along; beyond 60 is never ----
+        Page {
+            k: 8
+            caption: "idle · minutes without input · hypridle"
+
+            Item {
+                id: line
+                width: 1000
+                height: 300
+                readonly property var at: [lk.v, dpms.v, zz.v]
+
+                Repeater {
+                    model: 61
+                    Rectangle {
+                        required property int index
+                        readonly property int lvl: line.at.filter(m => m && m <= index).length
+                        x: index * 15 - 4
+                        y: 246
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: [Theme.fg, Theme.grey, Theme.mute, Theme.s3][lvl]
+                    }
+                }
+                // never is an empty ring beyond the scale
+                Rectangle { x: 62 * 15 - 7; y: 243; width: 14; height: 14; radius: 7; color: "transparent"; border { width: 1; color: Theme.mute } }
+                Repeater {
+                    model: [0, 15, 30, 45, 60]
+                    Lb { required property int modelData; x: modelData * 15 - width / 2; y: 272; text: modelData; px: 10 }
+                }
+                Lb { x: 62 * 15 - width / 2; y: 272; text: "never"; px: 10 }
+
+                Mark { id: lk; row: 0; label: "lock"; value: root.r.lockAfter; onMoved: v => { root.r.lockAfter = v; Rules.idle(); } }
+                Mark { id: dpms; row: 1; label: "screen off"; value: root.r.dpmsAfter; onMoved: v => { root.r.dpmsAfter = v; Rules.idle(); } }
+                Mark { id: zz; row: 2; label: Rules.hibernateOn ? "sleep · hibernate" : "sleep"; value: root.r.sleepAfter; onMoved: v => { root.r.sleepAfter = v; Rules.idle(); } }
+            }
+            Row {
+                spacing: 26
+                Repeater {
+                    model: [["awake", Theme.fg], ["locked", Theme.grey], ["dark", Theme.mute], ["asleep", Theme.s3]]
+                    Row {
+                        required property var modelData
+                        spacing: 10
+                        Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 8; height: 8; radius: 4; color: parent.modelData[1] }
+                        Lb { text: parent.modelData[0]; px: 10 }
+                    }
+                }
+            }
+            Row {
+                spacing: 24
+                Pick { label: "sleep into"; visible: Rules.canHibernate; opts: ["suspend", "hibernate"]; cur: root.r.hibernate ? 1 : 0; onPicked: i => { root.r.hibernate = i === 1; Rules.idle(); } }
+                Toggle { text: "caffeine"; on: Sys.caffeine; onFlip: Sys.caffeine = !Sys.caffeine }
+            }
+        }
+
+        // ---- SHELL: rice mark and the current shell name; switching is in the Rice app ----
+        Page {
+            k: 9
+            caption: "shell · quickshell"
+
+            Row {
+                spacing: 50
+                Item {
+                    width: 260
+                    height: 260
+                    Ring { anchors.fill: parent; n: 16; dot: 14; f: 1 }
+                    Rectangle { anchors.centerIn: parent; width: 52; height: 52; radius: 26; color: Theme.fg }
+                }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 18
+                    Lb { text: "running now" }
+                    Num { text: root.meta.name ?? "GLYPH"; font.pixelSize: 140 }
+                    Lb { text: root.meta.tagline ?? "" }
+                }
+            }
+            Row {
+                spacing: 20
+                Act {
+                    visible: root.shells > 1
+                    icon: "\u{F04E1}"
+                    text: "switch shell"
+                    onHit: {
+                        root.close();
+                        Quickshell.execDetached(["qs", "-c", "rice"]);
+                    }
+                }
+                Act { icon: "\u{F0450}"; text: "reload"; onHit: Quickshell.reload(false) }
+                Toggle { text: "do not disturb"; on: Theme.state.dnd; onFlip: Theme.state.dnd = !Theme.state.dnd }
+            }
+        }
+
+        // ---- LOGIN: display manager before the desktop. Needs the admin password and a reboot or logout ----
+        Page {
+            k: 10
+            caption: "login · before the desktop"
+
+            Row {
+                spacing: 50
+                Item {
+                    width: 260
+                    height: 260
+                    Ring { anchors.fill: parent; n: 16; dot: 14; f: root.login === "slowy" ? 1 : 0.4 }
+                    Rectangle { anchors.centerIn: parent; width: 52; height: 52; radius: 26; color: root.login === "slowy" ? Theme.fg : Theme.mute }
+                }
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 16
+                    Lb { text: "display manager" }
+                    Pick {
+                        label: "login"
+                        opts: ["default", "slowy"]
+                        cur: root.login === "slowy" ? 1 : 0
+                        onPicked: i => root.setLogin(i === 1 ? "slowy" : "default")
+                    }
+                    Lb { text: root.login === "slowy" ? "sddm · slowy theme" : "lightdm · endeavour default" }
+                    Lb {
+                        text: root.loginBusy ? "waiting for authentication" : "applies on reboot or logout"
+                        color: root.loginBusy ? Theme.fg : Theme.grey
+                    }
+                }
+            }
+            Lb {
+                visible: root.loginError !== ""
+                text: root.loginError
+                color: Theme.red
+            }
+            Lb { text: "fallback from a tty: sudo systemctl enable --force lightdm"; color: Theme.grey }
+        }
+    }
+
+    // section on the right: only the selected one is visible (Tab visits only visible ones), appears from bottom to top.
+    // A page scrolls when its controls outgrow the stage; short pages keep their natural height.
+    component Page: Item {
+        id: pageRoot
+        required property int k
+        property string caption
+        x: 800
+        width: 1100
+        height: Math.min(content.implicitHeight, Math.max(280, stage.height - 220))
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: visible ? 0 : 24
+        visible: root.sel === k
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+        Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+
+        Flickable {
+            id: flick
+            anchors.fill: parent
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            contentWidth: content.width
+            contentHeight: content.implicitHeight
+            Column {
+                id: content
+                width: pageRoot.width - 10
+                spacing: 28
+                Lb { text: pageRoot.caption }
+            }
+        }
+
+        Rectangle {
+            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 2 }
+            width: 2
+            visible: flick.contentHeight > flick.height
+            color: Theme.s2
+            Rectangle {
+                width: 2
+                height: Math.max(24, parent.height * flick.height / flick.contentHeight)
+                y: (parent.height - height) * flick.contentY / Math.max(1, flick.contentHeight - flick.height)
+                color: Theme.fg
+            }
+        }
+
+        WheelHandler {
+            // only pages that overflow take the wheel; dials on a fitting page keep their own wheel
+            enabled: flick.contentHeight > flick.height
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: e => flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, flick.contentY - e.angleDelta.y))
+        }
+
+        default property alias pageData: content.data
+    }
+
+    // screen in miniature 16:10: wallpaper (dot grid, if enabled) and bar; k is logical screen px in design px
+    component Mini: Rectangle {
+        readonly property real k: width / ((Rules.mon.w || 2880) / Math.max(Rules.scale, 1))
+        // preview is 0.4 scale of the home clock, so the lower text shifts by the same factor as Home's textDrop
+        readonly property real textDrop: Math.max(0, Theme.state.clockSize - 300) * 0.48
+        width: 760
+        height: 475
+        radius: 24
+        color: Theme.bg
+        border { width: 1; color: Theme.s3 }
+        Rectangle {
+            x: 14 * parent.k
+            y: 14 * parent.k
+            width: 64 * parent.k
+            height: parent.height - 28 * parent.k
+            radius: width / 2
+            color: Theme.s1
+            border { width: 1; color: Theme.s2 }
+        }
+    }
+
+    // empty layout cell: 4 x 4 dimmed dots
+    component Dots: Grid {
+        columns: 4
+        padding: 30
+        spacing: 28
+        Repeater {
+            model: 16
+            Rectangle { width: 6; height: 6; radius: 3; color: Theme.s3 }
+        }
+    }
+
+    // widget in the home layout: circle or 40 square (scaled), icon as dots, name. Selected has a white outline,
+    // focused is entirely white. If it does not fit, a pale outline
+    component Tile: Rectangle {
+        id: tile
+        required property var modelData // { id, i, row, col, span, fits }
+        property real cell: 168
+        property real gap: 16
+        readonly property bool on: home.cur === modelData.i
+        readonly property bool hot: on && grid.activeFocus
+        readonly property bool round: root.rounds.includes(modelData.id)
+        width: modelData.span * cell + (modelData.span - 1) * gap
+        height: cell
+        radius: round ? cell / 2 : cell * 0.18
+        color: hot ? Theme.fg : modelData.fits ? Theme.s1 : "transparent"
+        border { width: on ? 2 : 1; color: on ? Theme.fg : modelData.fits ? Theme.s2 : Theme.mute }
+        z: drag.active ? 1 : 0
+        // without target the shift is in scene px, while Stage is scaled
+        readonly property real dx: drag.activeTranslation.x / Theme.s
+        readonly property real dy: drag.activeTranslation.y / Theme.s
+        transform: Translate { x: drag.active ? tile.dx : 0; y: drag.active ? tile.dy : 0 }
+        Behavior on color { ColorAnimation { duration: Theme.t } }
+
+        Ring {
+            visible: tile.round && tile.cell > 100
+            anchors { fill: parent; margins: 10 }
+            n: 40
+            dot: 4
+            f: 0.66
+            on: tile.hot ? Theme.ink : Theme.fg
+            off: tile.hot ? Theme.fade(Theme.ink, 0.15) : Theme.s3
+        }
+        Column {
+            anchors.centerIn: parent
+            spacing: 10
+            Icon {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: root.icons[tile.modelData.id] ?? "?"
+                font.pixelSize: tile.cell * 0.26
+                color: tile.hot ? Theme.ink : tile.modelData.fits ? Theme.fg : Theme.grey
+                layer.enabled: true
+                layer.effect: Dm { step: 3 }
+            }
+            Lb { visible: tile.cell > 100; anchors.horizontalCenter: parent.horizontalCenter; text: tile.modelData.id; px: 10; color: tile.hot ? Theme.ink : Theme.grey }
+        }
+        TapHandler { onTapped: home.tap(tile.modelData.i) }
+        // the drop happens after the signal: a list change recreates the tiles, including this one
+        DragHandler {
+            id: drag
+            target: null
+            onActiveChanged: {
+                if (active) {
+                    home.cur = tile.modelData.i;
+                    return;
+                }
+                const p = grid.mapFromItem(tile.parent, tile.x + tile.width / 2 + tile.dx, tile.y + tile.height / 2 + tile.dy);
+                Qt.callLater(home.drop, tile.modelData.id, p);
+            }
+        }
+    }
+
+    // idle marker: stem to the scale, Doto number and name. Drag along the scale, left/right for one minute; beyond 60 is never (0).
+    // While dragging, local v is used; rules.json and hypridle are updated on release or after 400 ms of silence
+    component Mark: Item {
+        id: mk
+        property int row
+        property string label
+        property int value
+        property int v: value
+        signal moved(int v)
+        function put(m) {
+            m = m > 60.5 ? 0 : Math.max(1, Math.round(m));
+            if (m === v) return;
+            v = m;
+            wait.restart();
+        }
+        onValueChanged: if (!ma.pressed && !wait.running) v = value
+        Timer { id: wait; interval: 400; onTriggered: if (!ma.pressed && mk.v !== mk.value) mk.moved(mk.v) }
+
+        x: (v || 62) * 15
+        y: row * 76
+        width: 160
+        height: 250 - y
+        activeFocusOnTab: true
+        Keys.onPressed: e => {
+            if (e.key === Qt.Key_Left) put(v ? v - 1 : 60);
+            else if (e.key === Qt.Key_Right) put(v ? v + 1 : 61);
+            else return;
+            e.accepted = true;
+        }
+        Behavior on x { NumberAnimation { duration: 120 } }
+
+        Rectangle { width: 1; height: parent.height; color: mk.activeFocus || ma.pressed ? Theme.fg : Theme.mute }
+        Column {
+            x: 12
+            Num { text: mk.v || "—"; font.pixelSize: 44 }
+            Lb { topPadding: 6; text: mk.label; px: 10; color: mk.activeFocus ? Theme.fg : Theme.grey }
+        }
+        MouseArea {
+            id: ma
+            width: parent.width
+            height: 76
+            preventStealing: true
+            cursorShape: Qt.SizeHorCursor
+            onPressed: mk.forceActiveFocus()
+            onPositionChanged: e => mk.put(mapToItem(line, e.x, 0).x / 15)
+            onReleased: {
+                wait.stop();
+                if (mk.v !== mk.value) mk.moved(mk.v);
+            }
+        }
+    }
+
+    // button: pill with an icon in a circle. Click, Enter, space
+    component Act: Rectangle {
+        id: act
+        property string icon
+        property string text
+        signal hit
+        width: actL.implicitWidth + 110
+        height: 64
+        radius: 32
+        color: Theme.s2
+        border { width: activeFocus ? 1 : 0; color: Theme.fg }
+        activeFocusOnTab: true
+        Keys.onPressed: e => {
+            if (e.key !== Qt.Key_Return && e.key !== Qt.Key_Enter && e.key !== Qt.Key_Space) return;
+            act.hit();
+            e.accepted = true;
+        }
+        Rectangle {
+            x: 6
+            y: 6
+            width: 52
+            height: 52
+            radius: 26
+            color: Theme.s3
+            Icon { anchors.centerIn: parent; text: act.icon; font.pixelSize: 22 }
+        }
+        Lb { id: actL; x: 76; anchors.verticalCenter: parent.verticalCenter; text: act.text; color: act.activeFocus ? Theme.fg : Theme.grey }
+        TapHandler { onTapped: act.hit() }
+    }
+}
