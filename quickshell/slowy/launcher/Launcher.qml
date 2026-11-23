@@ -16,11 +16,14 @@ PanelWindow {
     property int sel: 0
     readonly property var modes: ["apps", "run", "windows", "calc"]
     readonly property string query: input.text
+    readonly property string ui: Theme.state.launcherStyle || "classic"
+    readonly property int cols: ui === "compact" ? 1 : ui === "cards" ? 4 : 6
+    readonly property int panelW: ui === "compact" ? 560 : ui === "cards" ? 920 : 860
     property var uses: ({}) // application id -> number of launches
 
     // glyphs for known applications; key is a lowercase fragment of the id/name
     readonly property var glyphs: [
-        ["zen", "\u{F0239}"], ["firefox", "\u{F0239}"], ["chrom", "\u{F059F}"], ["kitty", "\u{F018D}"], ["foot", "\u{F018D}"],
+        ["zen", "\u{F0239}"], ["firefox", "\u{F0239}"], ["helium", "\u{F0239}"], ["chrom", "\u{F059F}"], ["kitty", "\u{F018D}"], ["foot", "\u{F018D}"],
         ["spotify", "\u{F04C7}"], ["telegram", "\u{F2C6}"], ["codium", "\u{F0A1E}"], ["code", "\u{F0A1E}"], ["steam", "\u{F04D3}"],
         ["discord", "\u{F066F}"], ["vesktop", "\u{F066F}"], ["equibop", "\u{F066F}"], ["calculator", "\u{F00EC}"], ["calendar", "\u{F00ED}"],
         ["camera", "\u{F0100}"], ["thunar", "\u{F024B}"], ["nautilus", "\u{F024B}"], ["files", "\u{F024B}"], ["gimp", "\u{F02E9}"],
@@ -92,8 +95,8 @@ PanelWindow {
         }
         let row = 0, k = 0;
         for (const x of b) {
-            x.items = x.items.map((it, i) => Object.assign({}, it, { row: row + Math.floor(i / 6), col: i % 6, k: k++ }));
-            row += Math.ceil(x.items.length / 6);
+            x.items = x.items.map((it, i) => Object.assign({}, it, { row: row + Math.floor(i / root.cols), col: i % root.cols, k: k++ }));
+            row += Math.ceil(x.items.length / root.cols);
         }
         return b;
     }
@@ -178,7 +181,7 @@ PanelWindow {
             id: panel
             x: (stage.width - width) / 2
             y: 140 + 24 * (1 - root.t)
-            width: 860
+            width: root.panelW
             height: Math.min(stage.height - 280, 30 + 66 + 20 + body.height + 34)
             opacity: root.t
             radius: 44
@@ -296,8 +299,8 @@ PanelWindow {
                             }
                             Grid {
                                 id: grid
-                                columns: 6
-                                rowSpacing: 22
+                                columns: root.cols
+                                rowSpacing: root.ui === "compact" ? 4 : 22
                                 Repeater {
                                     model: block.modelData.items.length
                                     Cell { items: block.modelData.items }
@@ -310,7 +313,7 @@ PanelWindow {
 
             // alphabet on the right: letters in view are white; click jumps to the first entry for that letter
             Column {
-                visible: root.mode === 0 && !root.query && !!root.allGrid
+                visible: root.mode === 0 && !root.query && !!root.allGrid && root.ui !== "compact"
                 anchors { right: parent.right; rightMargin: 12; top: parent.top; topMargin: 130 }
                 spacing: 3
                 Repeater {
@@ -334,70 +337,111 @@ PanelWindow {
     readonly property Item allGrid: { const i = blocks.findIndex(b => b.all); return blockRep.count > i && i >= 0 ? blockRep.itemAt(i)?.g ?? null : null; }
     readonly property string range: {
         if (!allGrid || !allItems.length) return "";
-        const top = allGrid.mapToItem(body, 0, 0).y, rh = 88 + 10 + 20 + 22; // circle, padding, label, gap
+        const rh = root.ui === "compact" ? 52 : (root.ui === "cards" ? 154 : 120);
+        const top = allGrid.mapToItem(body, 0, 0).y;
         const r0 = Math.max(0, Math.floor((flick.contentY - top) / rh)), r1 = Math.floor((flick.contentY + flick.height - top) / rh);
-        const seen = allItems.slice(r0 * 6, (r1 + 1) * 6).map(a => a.name[0].toUpperCase());
+        const seen = allItems.slice(r0 * root.cols, (r1 + 1) * root.cols).map(a => a.name[0].toUpperCase());
         return seen.length ? seen[0] === seen[seen.length - 1] ? seen[0] : `${seen[0]}–${seen[seen.length - 1]}` : "";
     }
     function jump(l) {
         const i = allItems.findIndex(a => a.name[0].toUpperCase() >= l);
         if (i < 0) return;
         sel = allItems[i].k;
-        flick.contentY = Math.min(Math.max(0, flick.contentHeight - flick.height), allGrid.mapToItem(body, 0, 0).y + Math.floor(i / 6) * (88 + 10 + 20 + 22));
+        const rh = root.ui === "compact" ? 52 : (root.ui === "cards" ? 154 : 120);
+        flick.contentY = Math.min(Math.max(0, flick.contentHeight - flick.height), allGrid.mapToItem(body, 0, 0).y + Math.floor(i / root.cols) * rh);
     }
 
-    // application: 88 circle with a slowy or dotted icon; matched letters in the label are white
-    component Cell: Column {
+    // application cell: adapts to launcher style
+    component Cell: Item {
         id: cell
         required property int index
         property var items: []
         readonly property var modelData: items[index] ?? ({ name: "", hl: [] })
         readonly property bool on: root.sel === modelData.k
-        width: body.width / 6
-        spacing: 10
+        readonly property bool compact: root.ui === "compact"
+        readonly property bool cards: root.ui === "cards"
+        width: body.width / root.cols
+        height: compact ? 48 : cards ? 132 : 120
         onOnChanged: if (on) flick.ensure(mapToItem(body, 0, 0).y, height)
 
+        function hlText() {
+            const hl = cell.modelData.hl ?? [];
+            return [...(cell.modelData.name ?? "")].map((c, i) => {
+                const e = c === "<" ? "&lt;" : c === "&" ? "&amp;" : c;
+                return hl.includes(i) ? `<font color="${Theme.fg}">${e}</font>` : e;
+            }).join("");
+        }
+
+        // compact: horizontal row
         Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: 88
-            height: 88
-            radius: 44
-            color: cell.on ? Theme.fg : Theme.s2
-            Icon {
-                anchors.centerIn: parent
-                visible: !!cell.modelData.slowy
-                text: cell.modelData.slowy ?? ""
-                font.pixelSize: 36
-                color: cell.on ? Theme.ink : Theme.fg
-            }
-            Image {
-                anchors.centerIn: parent
-                visible: !cell.modelData.slowy && status === Image.Ready
-                width: 44
-                height: 44
-                source: cell.modelData.src ?? ""
-                sourceSize: Qt.size(44, 44)
-                asynchronous: true
-                retainWhileLoading: true // the cell changed application: keep the old icon while the new one loads
-                layer.enabled: true
-                layer.effect: Dm { step: 2.5 }
+            visible: cell.compact
+            anchors { fill: parent; leftMargin: 4; rightMargin: 4 }
+            radius: 12
+            color: cell.on ? Theme.s2 : "transparent"
+            Row {
+                anchors { fill: parent; leftMargin: 12; rightMargin: 12 }
+                spacing: 12
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 32; height: 32; radius: 16
+                    color: cell.on ? Theme.fg : Theme.s2
+                    Icon {
+                        anchors.centerIn: parent; visible: !!cell.modelData.slowy
+                        text: cell.modelData.slowy ?? ""; font.pixelSize: 16
+                        color: cell.on ? Theme.ink : Theme.fg
+                    }
+                    Image {
+                        anchors.centerIn: parent; visible: !cell.modelData.slowy && status === Image.Ready
+                        width: 18; height: 18; source: cell.modelData.src ?? ""
+                        sourceSize: Qt.size(18, 18); asynchronous: true; retainWhileLoading: true
+                        layer.enabled: true; layer.effect: Dm { step: 2.5 }
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - 44
+                    elide: Text.ElideRight; textFormat: Text.StyledText
+                    text: cell.hlText()
+                    font { family: Theme.ui; pixelSize: 15 }
+                    color: cell.on ? Theme.fg : Theme.grey
+                }
             }
             TapHandler { onTapped: { root.sel = cell.modelData.k; root.launch(); } }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
         }
-        Text {
-            width: parent.width - 8
+
+        // classic / cards: vertical tile
+        Column {
+            visible: !cell.compact
             anchors.horizontalCenter: parent.horizontalCenter
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-            textFormat: Text.StyledText
-            readonly property var hl: cell.modelData.hl ?? []
-            text: [...cell.modelData.name].map((c, i) => {
-                const e = c === "<" ? "&lt;" : c === "&" ? "&amp;" : c;
-                return hl.includes(i) ? `<font color="${Theme.fg}">${e}</font>` : e;
-            }).join("")
-            font { family: Theme.ui; pixelSize: 14 }
-            color: cell.on ? Theme.fg : Theme.grey
+            spacing: cell.cards ? 12 : 10
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: cell.cards ? 96 : 88; height: width; radius: width / 2
+                color: cell.on ? Theme.fg : Theme.s2
+                Icon {
+                    anchors.centerIn: parent; visible: !!cell.modelData.slowy
+                    text: cell.modelData.slowy ?? ""; font.pixelSize: cell.cards ? 40 : 36
+                    color: cell.on ? Theme.ink : Theme.fg
+                }
+                Image {
+                    anchors.centerIn: parent; visible: !cell.modelData.slowy && status === Image.Ready
+                    width: cell.cards ? 48 : 44; height: width; source: cell.modelData.src ?? ""
+                    sourceSize: Qt.size(width, height); asynchronous: true; retainWhileLoading: true
+                    layer.enabled: true; layer.effect: Dm { step: 2.5 }
+                }
+                TapHandler { onTapped: { root.sel = cell.modelData.k; root.launch(); } }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+            Text {
+                width: cell.width - 8
+                anchors.horizontalCenter: parent.horizontalCenter
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight; textFormat: Text.StyledText
+                text: cell.hlText()
+                font { family: Theme.ui; pixelSize: cell.cards ? 15 : 14 }
+                color: cell.on ? Theme.fg : Theme.grey
+            }
         }
     }
 }

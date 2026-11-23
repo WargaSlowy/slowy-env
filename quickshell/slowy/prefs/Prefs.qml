@@ -19,7 +19,7 @@ PanelWindow {
 
     property int sel: 0
     signal wallRequested // wallpaper is its own screen (wall/Walls), opened by shell.qml
-    readonly property var sections: ["HOME", "DECK", "BAR", "LOOK", "WINDOWS", "DISPLAY", "POWER", "INPUT", "IDLE", "SHELL", "LOGIN"]
+    readonly property var sections: ["HOME", "DECK", "BAR", "LOOK", "WINDOWS", "DISPLAY", "POWER", "INPUT", "IDLE", "SHELL", "LAUNCHER", "LOGIN"]
     readonly property string moves: "shift ←→ move · ↵ swap · del drop · drag"
     readonly property string rings: "drag round the rings · scroll"
     readonly property var hints: [moves, moves, moves, "", rings, rings, "↵ or click a mode", rings, "drag the marks", "", ""]
@@ -1106,7 +1106,7 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 18
                     Lb { text: "running now" }
-                    Num { text: root.meta.name ?? "GLYPH"; font.pixelSize: 140 }
+                    Num { text: root.meta.name ?? "SLOWY"; font.pixelSize: 140 }
                     Lb { text: root.meta.tagline ?? "" }
                 }
             }
@@ -1126,9 +1126,27 @@ PanelWindow {
             }
         }
 
-        // ---- LOGIN: display manager before the desktop. Needs the admin password and a reboot or logout ----
+        // ---- LAUNCHER: app launcher style ----
         Page {
             k: 10
+            caption: "launcher · style"
+
+            Column {
+                spacing: 24
+                Lb { text: "launcher ui" }
+                Pick {
+                    label: "style"
+                    opts: ["classic", "compact", "cards"]
+                    cur: Math.max(0, ["classic", "compact", "cards"].indexOf(Theme.state.launcherStyle))
+                    onPicked: i => Theme.state.launcherStyle = ["classic", "compact", "cards"][i]
+                }
+                Lb { text: "Super to open launcher · style applies immediately"; color: Theme.grey }
+            }
+        }
+
+        // ---- LOGIN: display manager before the desktop. Needs the admin password and a reboot or logout ----
+        Page {
+            k: 11
             caption: "login · before the desktop"
 
             Row {

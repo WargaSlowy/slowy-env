@@ -15,6 +15,8 @@ import "settings"
 import "shot"
 import "vpn"
 import "wall"
+import "keyhelp"
+import "notif"
 
 // slowy: a rice in the spirit of nothing os. Home on the wallpaper, bar, launcher, quick settings,
 // Slowy strips at the edges instead of OSD, notification island, power menu, settings, deck (bottom dashboard), clipboard, charms (emoji and symbols), screenshots, vpn, wallpaper. Lock is a separate process (lock.qml).
@@ -34,6 +36,8 @@ ShellRoot {
     Shot { id: shot }
     Vpn { id: vpn }
     Walls { id: walls }
+    KeyHelp { id: keyhelp }
+    Notif {}
 
     Variants {
         model: Quickshell.screens
@@ -137,6 +141,7 @@ ShellRoot {
     Shortcut { name: "clip"; description: "clipboard"; onPressed: clip.toggle() }
     Shortcut { name: "charms"; description: "emoji, kaomoji, symbols"; onPressed: charms.toggle() }
     Shortcut { name: "wall"; description: "wallpaper"; onPressed: walls.toggle() }
+    Shortcut { name: "keyhelp"; description: "keybind help"; onPressed: keyhelp.toggle() }
     Shortcut { name: "game"; description: "game mode"; onPressed: Rules.store.game = !Rules.store.game }
 
     component Shortcut: GlobalShortcut { appid: "shell" }

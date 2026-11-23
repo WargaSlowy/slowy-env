@@ -42,6 +42,8 @@ Singleton {
     readonly property color fg: light ? "#0B0B0B" : scheme.fg   // text, on, focus
     readonly property color ink: light ? "#FFFFFF" : scheme.ink  // text on a white tile
     readonly property color red: scheme.red                     // at most one thing on screen, and only "live"
+    readonly property color yellow: "#e5c76b"                  // Everblush yellow
+    readonly property color green: "#8ccf7e"                   // Everblush green
     readonly property color glow: light ? Qt.rgba(0, 0, 0, 0.3) : Qt.rgba(1, 1, 1, 0.6)
     readonly property color scrim: light ? Qt.rgba(0.91, 0.91, 0.91, 0.8) : Qt.rgba(0, 0, 0, 0.74)
 
@@ -69,7 +71,11 @@ Singleton {
     // wallpaper is drawn from a screen-sized copy (made by the picker, magick); the original can be a 40 MB png and would take seconds to load.
     // ponytail: if no copy exists (cache cleared, path entered by hand), empty, grid and orb until the picker is opened
     readonly property string wallCache: (Quickshell.env("XDG_CACHE_HOME") || Quickshell.env("HOME") + "/.cache") + "/slowy/walls"
-    function wallSrc(p) { return p ? `${wallCache}/${p.slice(p.lastIndexOf("/") + 1)}.jpg` : ""; }
+    function wallSrc(p) {
+        if (!p) return "";
+        if (p.endsWith(".svg")) return p;
+        return `${wallCache}/${p.slice(p.lastIndexOf("/") + 1)}.jpg`;
+    }
 
     function fade(c, a) { return Qt.rgba(c.r, c.g, c.b, a); }
     // clock per 12/24 setting: "09" or "9"
@@ -111,9 +117,9 @@ Singleton {
             property string name: ""       // in the greeting; empty means $USER
             property string scheme: "everblush" // prefs · LOOK: everblush | aphelion
             // wallpaper (wall/Walls picker, drawn by components/Wall): image path; empty means background color. The picker folder can be changed here
-            property string wall: ""
+            property string wall: Quickshell.env("HOME") + "/.config/quickshell/slowy/assets/warga_slowy_logo.svg"
             property string wallDir: ""    // empty means ~/Pictures/Wallpapers
-            property int wallLook: 0       // 0 dots, 1 grey photo, 2 color
+            property int wallLook: 2       // 0 dots, 1 grey photo, 2 color
             property int wallPitch: 10     // dot pitch, px
             property int wallBright: 85    // %, from background to image
             property int rounding: 20      // hypr windows
@@ -125,6 +131,7 @@ Singleton {
             property var bar: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
+            property string launcherStyle: "classic" // launcher ui: classic | compact | cards
             property string barWs: "circle" // workspace indicator: circle | number
             property int barRadius: 16        // vdx pill corner radius, px; 0 is square
             property int barBorder: 1         // vdx pill frame width, px; 0 removes it

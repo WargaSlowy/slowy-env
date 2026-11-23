@@ -30,6 +30,7 @@ PanelWindow {
     readonly property var top: ToplevelManager.activeToplevel
     readonly property var bat: UPower.displayDevice
     readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
+    readonly property var net: wifi?.networks.values.find(n => n.connected) ?? null
 
     function go(ws) { Hyprland.dispatch(`hl.dsp.focus({ workspace = "${ws}" })`); }
 
@@ -112,7 +113,13 @@ PanelWindow {
                                 color: ws.on ? Theme.fg : ws.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45)
                             }
 
-                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            HoverHandler {
+                                cursorShape: Qt.PointingHandCursor
+                                onHoveredChanged: {
+                                    if (hovered && ws.occ) { root.wsPeek(ws, ws.n); root.wsPreviewHot = true; }
+                                    else if (!hovered) root.wsPreviewHot = false;
+                                }
+                            }
                             MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(ws.n) }
                         }
                     }
@@ -130,7 +137,47 @@ PanelWindow {
             }
         }
 
-        // ---- right: tray in Theme.state.bar order ----
+        // ---- center: active workspace app icons ----
+        Rectangle {
+            id: appPill
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: leftRow.verticalCenter
+            height: 30
+            visible: appRow.implicitWidth > 0
+            width: appRow.implicitWidth + 20
+            radius: 15
+            color: Theme.s1
+            Row {
+                id: appRow
+                anchors.centerIn: parent
+                spacing: 8
+                Repeater {
+                    model: Hyprland.focusedWorkspace?.toplevels.values ?? []
+                    Item {
+                        required property var modelData
+                        readonly property string cls: modelData.lastIpcObject?.class ?? ""
+                        readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                        width: 18; height: 18
+                        Image {
+                            anchors.fill: parent
+                            visible: status === Image.Ready
+                            source: parent.icon
+                            sourceSize: Qt.size(18, 18)
+                            asynchronous: true
+                        }
+                        Icon {
+                            anchors.centerIn: parent
+                            visible: !parent.icon
+                            text: "\u{F003B}"
+                            font.pixelSize: 14
+                            color: Theme.grey
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- right: tray in Theme.state.bar order (wifi is its own pill) ----
         Row {
             id: rightRow
             x: stage.width - width - 22
@@ -138,9 +185,26 @@ PanelWindow {
             height: stage.barH
             spacing: 6
 
+            Loader {
+                anchors.verticalCenter: parent.verticalCenter
+                sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
+                visible: !!sourceComponent
+                TapHandler { onTapped: root.trayClicked() }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+
+            Loader {
+                anchors.verticalCenter: parent.verticalCenter
+                sourceComponent: Theme.state.bar.includes("sound") ? root.parts.sound : null
+                visible: !!sourceComponent
+                TapHandler { onTapped: root.trayClicked() }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+            }
+
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 height: 30
+                visible: trayRow.implicitWidth > 0
                 width: trayRow.implicitWidth + 20
                 radius: 15
                 color: Theme.s1
@@ -155,7 +219,7 @@ PanelWindow {
                             required property string modelData
                             readonly property bool quick: modelData !== "mode" && modelData !== "power"
                             anchors.verticalCenter: parent.verticalCenter
-                            sourceComponent: root.parts[modelData] ?? null
+                            sourceComponent: (modelData !== "wifi" && modelData !== "sound") ? (root.parts[modelData] ?? null) : null
                             visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                             TapHandler { enabled: part.quick; onTapped: root.trayClicked() }
                             HoverHandler { enabled: part.quick; cursorShape: Qt.PointingHandCursor }
@@ -170,9 +234,37 @@ PanelWindow {
     Component { id: layoutC; Lb { family: Theme.state.barFont; text: Sys.layout; px: 10 } }
     Component {
         id: wifiC
-        Icon {
-            text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"
-            color: root.wifi?.connected ? Theme.fg : Theme.grey
+        Item {
+            implicitWidth: wp.implicitWidth + 8
+            implicitHeight: wp.implicitHeight
+            Rectangle {
+                id: wp
+                anchors.centerIn: parent
+                readonly property string ssid: !Networking.wifiEnabled ? "Off" : (root.net?.name ?? "Wi-Fi")
+                implicitWidth: iconSeg.width + Math.min(name.implicitWidth, 96) + 18
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                clip: true
+                Rectangle {
+                    id: iconSeg
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 26
+                    radius: 13
+                    topRightRadius: 0
+                    bottomRightRadius: 0
+                    color: Theme.yellow
+                    Icon { anchors.centerIn: parent; text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"; font.pixelSize: 13; color: Theme.bg }
+                }
+                Text {
+                    id: name
+                    anchors { left: iconSeg.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: wp.ssid
+                    font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
+                    color: Theme.fg
+                    elide: Text.ElideRight
+                }
+            }
         }
     }
     Component {
@@ -184,9 +276,63 @@ PanelWindow {
     }
     Component {
         id: soundC
-        Icon {
-            text: Sys.muted ? "\u{F075F}" : "\u{F057E}"
-            WheelHandler { onWheel: e => Sys.setVol(Sys.vol + (e.angleDelta.y > 0 ? 0.05 : -0.05)) }
+        Item {
+            id: vpill
+            implicitWidth: sp.implicitWidth + 8
+            implicitHeight: sp.implicitHeight
+            width: implicitWidth
+            height: implicitHeight
+            property bool hot: false
+            HoverHandler { onHoveredChanged: vpill.hot = hovered }
+            Rectangle {
+                id: sp
+                anchors.centerIn: parent
+                readonly property string label: Sys.muted ? "Mute" : Math.round(Sys.vol * 100) + "%"
+                implicitWidth: sIcon.width + (vpill.hot ? 72 : Math.min(sName.implicitWidth, 52)) + 18
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                clip: true
+                Behavior on implicitWidth { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+                Rectangle {
+                    id: sIcon
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 26
+                    radius: 13
+                    topRightRadius: 0
+                    bottomRightRadius: 0
+                    color: "#67b0e8"
+                    Icon { anchors.centerIn: parent; text: Sys.muted ? "\u{F075F}" : "\u{F057E}"; font.pixelSize: 13; color: Theme.bg }
+                }
+
+                Text {
+                    id: sName
+                    anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: sp.label
+                    font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
+                    color: Theme.fg
+                    opacity: vpill.hot ? 0 : 1
+                    Behavior on opacity { NumberAnimation { duration: 100 } }
+                }
+
+                Rectangle {
+                    anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    height: 6
+                    radius: 3
+                    color: Theme.s3
+                    opacity: vpill.hot ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Rectangle {
+                        width: parent.width * Math.max(0, Math.min(1, Sys.vol))
+                        height: parent.height
+                        radius: 3
+                        color: Sys.muted ? Theme.grey : "#67b0e8"
+                        Behavior on width { NumberAnimation { duration: 80 } }
+                    }
+                }
+            }
+            WheelHandler { acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad; onWheel: e => Sys.setVol(Sys.vol + (e.angleDelta.y > 0 ? 0.05 : -0.05)) }
         }
     }
     Component {
@@ -210,7 +356,12 @@ PanelWindow {
             property real phase: 0
             readonly property real pulse: charging ? 0.675 + 0.325 * Math.cos(phase * Math.PI / 1.1) : 1
             Timer { running: batc.charging; interval: 50; repeat: true; onTriggered: batc.phase = (batc.phase + 0.05) % 2.2; onRunningChanged: batc.phase = 0 }
-            Icon { visible: batc.ac; anchors.verticalCenter: parent.verticalCenter; text: "\u{F140B}"; font.pixelSize: 14 }
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 18; height: 18; radius: 5
+                color: batc.ac ? Theme.green : Theme.s3
+                Icon { anchors.centerIn: parent; text: "\u{F140B}"; font.pixelSize: 13; color: batc.ac ? Theme.bg : Theme.fg }
+            }
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 26
@@ -274,7 +425,21 @@ PanelWindow {
     property bool batHot: false
     property bool tickHot: false
     readonly property bool powHot: batHot || tickHot || popHov.hovered
+
+    // workspace preview
+    property int wsPreviewN: -1
+    property real wsPreviewX: 0
+    property bool wsPreviewHot: false
+    readonly property bool wsPopHot: wsPreviewHot || wsPopHov.hovered
+    property bool wsPreviewOpen: false
+    readonly property var wsPreviewWins: (Hyprland.workspaces.values.find(w => w.id === wsPreviewN)?.toplevels.values ?? [])
+    onWsPopHotChanged: wsPopHot ? wsOpenT.restart() : wsCloseT.restart()
+    Timer { id: wsOpenT; interval: 180; onTriggered: if (root.wsPopHot) root.wsPreviewOpen = true }
+    Timer { id: wsCloseT; interval: 250; onTriggered: if (!root.wsPopHot) { root.wsPreviewOpen = false; root.wsPreviewN = -1; } }
+    function wsPeek(it, n) { if (!wsPop.visible || root.wsPreviewN !== n) { root.wsPreviewN = n; root.wsPreviewX = it.mapToItem(stage, it.width / 2, 0).x; } }
     readonly property bool batLow: UPower.onBattery && root.bat.percentage < 0.15
+    readonly property bool batWarn30: UPower.onBattery && root.bat.percentage <= 0.30
+    onBatWarn30Changed: if (batWarn30) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(root.bat.percentage * 100) + "%"])
     // the card is centered on the hovered item; it does not jump while visible
     property real popX: 0
     function peek(it) { if (!pop.visible) popX = it.mapToItem(stage, it.width / 2, 0).x; }
@@ -382,6 +547,91 @@ PanelWindow {
                         width: parent.width
                         elide: Text.ElideRight
                         text: `${Rules.modes[i].what} · ${i === 0 ? Rules.rates[0] : Rules.refreshHz} hz`
+                    }
+                }
+            }
+        }
+    }
+
+    // workspace preview
+    PopupWindow {
+        id: wsPop
+        property real t: root.wsPreviewOpen ? 1 : 0
+        Behavior on t { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+        visible: t > 0
+        anchor.item: stage
+        anchor.rect: Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
+        anchor.edges: Edges.Top | Edges.Left
+        anchor.gravity: Edges.Bottom | Edges.Right
+        implicitWidth: Math.ceil(320 * Theme.s)
+        implicitHeight: Math.ceil(wsCard.height * Theme.s)
+        color: "transparent"
+
+        Stage {
+            Rectangle {
+                id: wsCard
+                width: 320
+                height: wsCol.height + 32
+                radius: 20
+                color: Theme.bg
+                border { width: 1; color: Theme.s2 }
+                opacity: wsPop.t
+                transform: Translate { y: -12 * (1 - wsPop.t) }
+                HoverHandler { id: wsPopHov }
+
+                Column {
+                    id: wsCol
+                    x: 16; y: 16
+                    width: parent.width - 32
+                    spacing: 8
+                    Repeater {
+                        model: root.wsPreviewWins
+                        Rectangle {
+                            required property var modelData
+                            width: wsCol.width
+                            height: 30
+                            radius: 8
+                            color: rowHov.hovered ? Theme.s2 : "transparent"
+                            readonly property string cls: modelData.lastIpcObject?.class ?? ""
+                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            HoverHandler { id: rowHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler {
+                                onTapped: {
+                                    const tl = parent.modelData;
+                                    root.wsPreviewOpen = false;
+                                    root.wsPreviewN = -1;
+                                    const ws = tl.workspace?.id ?? tl.lastIpcObject?.workspace?.id;
+                                    if (ws !== undefined) Hyprland.dispatch(`hl.dsp.focus({ workspace = "${ws}" })`);
+                                    if (tl.activate) tl.activate();
+                                    else Hyprland.dispatch(`focuswindow address:${tl.address}`);
+                                }
+                            }
+                            Row {
+                                anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
+                                spacing: 10
+                                Image {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 18; height: 18
+                                    visible: status === Image.Ready
+                                    source: parent.parent.icon
+                                    sourceSize: Qt.size(18, 18)
+                                    asynchronous: true
+                                }
+                                Icon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !parent.parent.icon
+                                    text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width - 28
+                                    elide: Text.ElideRight
+                                    text: (parent.parent.modelData.title || parent.parent.cls || "window")
+                                    font { family: Theme.ui; pixelSize: 13 }
+                                    color: Theme.fg
+                                }
+                            }
+                        }
                     }
                 }
             }

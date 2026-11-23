@@ -42,7 +42,10 @@ PanelWindow {
     readonly property int active: Hyprland.focusedWorkspace?.id ?? 0
     readonly property int count: Math.min(10, Math.max(6, active, ...Hyprland.workspaces.values.filter(w => w.toplevels.values.length).map(w => w.id)))
     readonly property var bat: UPower.displayDevice
+    readonly property bool batWarn30: UPower.onBattery && bat.percentage <= 0.30
+    onBatWarn30Changed: if (batWarn30) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(bat.percentage * 100) + "%"])
     readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
+    readonly property var net: wifi?.networks.values.find(n => n.connected) ?? null
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
     readonly property int year: clock.date.getFullYear()
@@ -237,6 +240,12 @@ PanelWindow {
                     }
                     font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
                     color: Theme.fg
+                }
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: root.parts.sound
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: root.trayClicked() }
                 }
                 Loader {
                     anchors.verticalCenter: parent.verticalCenter
@@ -554,7 +563,7 @@ PanelWindow {
                     spacing: 6
                     readonly property int chipHeight: 32
                     Repeater {
-                        model: Theme.state.bar
+                        model: Theme.state.bar.filter(m => m !== "sound" && m !== "wifi")
                         Rectangle {
                             id: chip
                             required property string modelData
@@ -809,10 +818,37 @@ PanelWindow {
     Component { id: layoutC; Lb { family: Theme.state.barFont; text: Sys.layout; px: 9; color: Theme.grey } }
     Component {
         id: wifiC
-        Icon {
-            text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"
-            font.pixelSize: 14 + Theme.state.barIconGrow
-            color: root.wifi?.connected ? Theme.fg : Theme.grey
+        Item {
+            implicitWidth: wp.implicitWidth + 8
+            implicitHeight: wp.implicitHeight
+            Rectangle {
+                id: wp
+                anchors.centerIn: parent
+                readonly property string ssid: !Networking.wifiEnabled ? "Off" : (root.net?.name ?? "Wi-Fi")
+                implicitWidth: iconSeg.width + Math.min(name.implicitWidth, 96) + 18
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                clip: true
+                Rectangle {
+                    id: iconSeg
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 26
+                    radius: 13
+                    topRightRadius: 0
+                    bottomRightRadius: 0
+                    color: Theme.yellow
+                    Icon { anchors.centerIn: parent; text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"; font.pixelSize: 13; color: Theme.bg }
+                }
+                Text {
+                    id: name
+                    anchors { left: iconSeg.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: wp.ssid
+                    font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
+                    color: Theme.fg
+                    elide: Text.ElideRight
+                }
+            }
         }
     }
     Component {
@@ -825,10 +861,63 @@ PanelWindow {
     }
     Component {
         id: soundC
-        Icon {
-            text: Sys.muted ? "\u{F075F}" : "\u{F057E}"
-            font.pixelSize: 14 + Theme.state.barIconGrow
-            WheelHandler { onWheel: e => Sys.setVol(Sys.vol + (e.angleDelta.y > 0 ? 0.05 : -0.05)) }
+        Item {
+            id: vpill
+            implicitWidth: sp.implicitWidth + 8
+            implicitHeight: sp.implicitHeight
+            width: implicitWidth
+            height: implicitHeight
+            property bool hot: false
+            HoverHandler { onHoveredChanged: vpill.hot = hovered }
+            Rectangle {
+                id: sp
+                anchors.centerIn: parent
+                readonly property string label: Sys.muted ? "Mute" : Math.round(Sys.vol * 100) + "%"
+                implicitWidth: sIcon.width + (vpill.hot ? 72 : Math.min(sName.implicitWidth, 52)) + 18
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                clip: true
+                Behavior on implicitWidth { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+                Rectangle {
+                    id: sIcon
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 26
+                    radius: 13
+                    topRightRadius: 0
+                    bottomRightRadius: 0
+                    color: "#67b0e8"
+                    Icon { anchors.centerIn: parent; text: Sys.muted ? "\u{F075F}" : "\u{F057E}"; font.pixelSize: 13; color: Theme.bg }
+                }
+
+                Text {
+                    id: sName
+                    anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    text: sp.label
+                    font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
+                    color: Theme.fg
+                    opacity: vpill.hot ? 0 : 1
+                    Behavior on opacity { NumberAnimation { duration: 100 } }
+                }
+
+                Rectangle {
+                    anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    height: 6
+                    radius: 3
+                    color: Theme.s3
+                    opacity: vpill.hot ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Rectangle {
+                        width: parent.width * Math.max(0, Math.min(1, Sys.vol))
+                        height: parent.height
+                        radius: 3
+                        color: Sys.muted ? Theme.grey : "#67b0e8"
+                        Behavior on width { NumberAnimation { duration: 80 } }
+                    }
+                }
+            }
+            WheelHandler { acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad; onWheel: e => Sys.setVol(Sys.vol + (e.angleDelta.y > 0 ? 0.05 : -0.05)) }
         }
     }
     Component {
@@ -841,10 +930,20 @@ PanelWindow {
     }
     Component {
         id: batC
-        Lb { family: Theme.state.barFont;
-            px: 9
-            color: UPower.onBattery && root.bat.percentage < 0.15 ? Theme.red : Theme.grey
-            text: Math.round(root.bat.percentage * 100) + "%"
+        Row {
+            spacing: 4
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 16; height: 16; radius: 4
+                color: !UPower.onBattery ? Theme.green : Theme.s3
+                Icon { anchors.centerIn: parent; text: "\u{F140B}"; font.pixelSize: 11; color: !UPower.onBattery ? Theme.bg : Theme.fg }
+            }
+            Lb { family: Theme.state.barFont;
+                anchors.verticalCenter: parent.verticalCenter
+                px: 9
+                color: UPower.onBattery && root.bat.percentage < 0.15 ? Theme.red : Theme.grey
+                text: Math.round(root.bat.percentage * 100) + "%"
+            }
         }
     }
     Component {

@@ -115,6 +115,8 @@ PanelWindow {
                         Pill {
                             on: Networking.wifiEnabled
                             icon: on ? "\u{F05A9}" : "\u{F05AA}"
+                            iconBg: Theme.yellow
+                            iconFg: Theme.ink
                             name: "Wi-Fi"
                             sub: !on ? "off" : (Networking.connectivity === NetworkConnectivity.Portal ? "sign in · " : "") + (root.net?.name ?? "no network")
                             picked: root.pick === "wifi"
@@ -407,6 +409,10 @@ PanelWindow {
         property string name
         property string sub
         signal clicked
+        property color iconBg: "transparent"
+        property color iconFg: "transparent"
+        readonly property color _iconBg: iconBg.a > 0 ? iconBg : (pill.on ? Theme.ink : Theme.s3)
+        readonly property color _iconFg: iconFg.a > 0 ? iconFg : Theme.fg
         width: (col.width - 12) / 2
         height: 76
         radius: 38
@@ -419,8 +425,8 @@ PanelWindow {
             width: 52
             height: 52
             radius: 26
-            color: pill.on ? Theme.ink : Theme.s3
-            Icon { anchors.centerIn: parent; text: pill.icon; font.pixelSize: 22 }
+            color: pill._iconBg
+            Icon { anchors.centerIn: parent; text: pill.icon; font.pixelSize: 22; color: pill._iconFg }
         }
         Column {
             anchors { left: pi.right; leftMargin: 12; right: chev.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
