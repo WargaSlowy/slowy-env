@@ -1,4 +1,4 @@
-# glyph: colorscheme — Theme.apply() writes, do not edit by hand
+# slowy: colorscheme — Theme.apply() writes, do not edit by hand
 
 [Colors:Button]
 BackgroundAlternate=#232A2D

@@ -603,6 +603,12 @@ PanelWindow {
                         onPicked: i => Theme.state.barFont = Theme.fontNames[i]
                     }
                     Pick {
+                        label: "ws style"
+                        opts: ["circle", "number"]
+                        cur: Math.max(0, ["circle", "number"].indexOf(Theme.state.barWs))
+                        onPicked: i => Theme.state.barWs = ["circle", "number"][i]
+                    }
+                    Pick {
                         visible: Theme.state.barStyle === "vdx"
                         label: "bar radius"
                         opts: ["0", "8", "16", "24"]

@@ -125,6 +125,7 @@ Singleton {
             property var bar: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
+            property string barWs: "circle" // workspace indicator: circle | number
             property int barRadius: 16        // vdx pill corner radius, px; 0 is square
             property int barBorder: 1         // vdx pill frame width, px; 0 removes it
             property int pillHeight: 32       // vdx pill height at rest, px

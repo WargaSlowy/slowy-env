@@ -23,6 +23,7 @@ PanelWindow {
     implicitHeight: Math.ceil(48 * Theme.s)
     color: "transparent"
     WlrLayershell.namespace: "slowy-bar"
+    WlrLayershell.layer: WlrLayer.Overlay
 
     readonly property int active: Hyprland.focusedWorkspace?.id ?? 0
     readonly property int count: Math.min(10, Math.max(6, active, ...Hyprland.workspaces.values.filter(w => w.toplevels.values.length).map(w => w.id)))
@@ -80,20 +81,39 @@ PanelWindow {
                     spacing: 6
                     Repeater {
                         model: root.count
-                        Rectangle {
+                        Item {
+                            id: ws
                             required property int index
                             readonly property int n: index + 1
                             readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
                             readonly property bool on: root.active === n
+                            readonly property bool nums: Theme.state.barWs === "number"
                             anchors.verticalCenter: parent.verticalCenter
-                            width: on ? 22 : 8
-                            height: 8
-                            radius: 4
-                            color: on ? Theme.fg : occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2)
+                            width: nums ? 22 : (on ? 28 : 10)
+                            height: nums ? 22 : 10
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: nums ? 11 : 5
+                                color: ws.nums
+                                    ? (ws.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, ws.occ ? 0.12 : 0.06))
+                                    : (ws.on ? Theme.fg : ws.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
+                                Behavior on color { ColorAnimation { duration: Theme.t } }
+                            }
                             Behavior on width { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
-                            Behavior on color { ColorAnimation { duration: Theme.t } }
+
+                            Lb {
+                                id: wsLbl
+                                visible: ws.nums
+                                anchors.centerIn: parent
+                                family: Theme.state.barFont
+                                text: ws.n
+                                px: 10
+                                color: ws.on ? Theme.fg : ws.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45)
+                            }
+
                             HoverHandler { cursorShape: Qt.PointingHandCursor }
-                            MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(parent.n) }
+                            MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(ws.n) }
                         }
                     }
                 }

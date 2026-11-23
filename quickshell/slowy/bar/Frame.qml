@@ -18,9 +18,16 @@ PanelWindow {
     WlrLayershell.layer: deckOpen ? WlrLayer.Top : WlrLayer.Bottom
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     mask: Region {
-        y: root.deckOpen ? 0 : root.height - 2
+        x: 0
+        y: root.height - 2
         width: root.width
-        height: root.deckOpen ? root.height : (Theme.state.deckHover && root.deckIds.length > 0 ? 2 : 0)
+        height: !root.deckOpen && Theme.state.deckHover && root.deckIds.length > 0 ? 2 : 0
+        Region {
+            x: Math.max(0, panel.x * Theme.s - 20)
+            y: Math.max(0, panel.y * Theme.s - 20)
+            width: Math.min(root.width, panel.width * Theme.s + 40)
+            height: root.deckOpen ? root.height - Math.max(0, panel.y * Theme.s - 20) : 0
+        }
     }
 
     readonly property real top: Math.ceil(44 * Theme.s)
@@ -30,6 +37,11 @@ PanelWindow {
     property bool deckOpen: false
     property real dt: deckOpen ? 1 : 0
     Behavior on dt { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+
+    readonly property real deckLeft: panel.x * Theme.s
+    readonly property real deckRight: (panel.x + panel.width) * Theme.s
+    readonly property real deckTop: panel.y * Theme.s
+    readonly property real deckRadius: 40 * Theme.s
 
     readonly property var deckIds: Theme.state.deck.filter(id => Theme.decks.includes(id))
     readonly property int deckH: 232
@@ -80,10 +92,19 @@ PanelWindow {
                         const b = root.b, r = root.r, top = root.top;
                         const ir = Math.max(0, r - b);
                         const or_ = r;
+                        const bot = h - b;
+                        const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
+                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
                         let p = `M 0 0 L ${w} 0 L ${w} ${h - or_} Q ${w} ${h} ${w - or_} ${h} L ${or_} ${h} Q 0 ${h} 0 ${h - or_} Z`;
                         p += ` M ${b + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
-                        p += ` L ${w - b} ${h - b - ir} Q ${w - b} ${h - b} ${w - b - ir} ${h - b}`;
-                        p += ` L ${b + ir} ${h - b} Q ${b} ${h - b} ${b} ${h - b - ir}`;
+                        p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
+                        if (root.dt > 0.01 && dr > dl + 2) {
+                            p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
+                            p += ` L ${dr} ${dt + drr} Q ${dr} ${dt} ${dr - drr} ${dt}`;
+                            p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
+                            p += ` L ${dl} ${bot - drr} Q ${dl} ${bot} ${dl - drr} ${bot}`;
+                        }
+                        p += ` L ${b + ir} ${bot} Q ${b} ${bot} ${b} ${bot - ir}`;
                         p += ` L ${b} ${top + ir} Q ${b} ${top} ${b + ir} ${top} Z`;
                         return p;
                     }
@@ -101,7 +122,19 @@ PanelWindow {
                         const w = root.width, h = root.height;
                         const b = root.b, r = root.r, top = root.top;
                         const ir = Math.max(0, r - b);
-                        return `M ${b} ${top + ir} Q ${b} ${top} ${b + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir} L ${w - b} ${h - b - ir} Q ${w - b} ${h - b} ${w - b - ir} ${h - b} L ${b + ir} ${h - b} Q ${b} ${h - b} ${b} ${h - b - ir} Z`;
+                        const bot = h - b;
+                        const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
+                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
+                        let p = `M ${b} ${top + ir} Q ${b} ${top} ${b + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
+                        p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
+                        if (root.dt > 0.01 && dr > dl + 2) {
+                            p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
+                            p += ` L ${dr} ${dt + drr} Q ${dr} ${dt} ${dr - drr} ${dt}`;
+                            p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
+                            p += ` L ${dl} ${bot - drr} Q ${dl} ${bot} ${dl - drr} ${bot}`;
+                        }
+                        p += ` L ${b + ir} ${bot} Q ${b} ${bot} ${b} ${bot - ir} Z`;
+                        return p;
                     }
                 }
             }
@@ -124,43 +157,14 @@ PanelWindow {
         Item {
             id: panel
             anchors.horizontalCenter: parent.horizontalCenter
-            y: (root.height / Theme.s) - panel.height + (1 - root.dt) * (panel.height - panel.fb)
+            y: (root.height - root.b) / Theme.s - panel.height * root.dt
             width: row.width + 52
             height: root.deckH + 52
             opacity: root.dt
-            scale: 0.96 + 0.04 * root.dt
+            scale: 0.94 + 0.06 * root.dt
             transformOrigin: Item.Bottom
             readonly property int fb: Math.max(8, Math.round(8 * Theme.s))
 
-            Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                    fillColor: Theme.bg
-                    strokeColor: "transparent"
-                    strokeWidth: 0
-                    joinStyle: ShapePath.RoundJoin
-                    PathSvg {
-                        path: {
-                            const w = panel.width, h = panel.height, r = 40;
-                            return `M 0 ${h} L 0 ${r} Q 0 0 ${r} 0 L ${w - r} 0 Q ${w} 0 ${w} ${r} L ${w} ${h} Z`;
-                        }
-                    }
-                }
-                ShapePath {
-                    fillColor: "transparent"
-                    strokeColor: Theme.s2
-                    strokeWidth: 1
-                    joinStyle: ShapePath.RoundJoin
-                    capStyle: ShapePath.FlatCap
-                    PathSvg {
-                        path: {
-                            const w = panel.width, h = panel.height, r = 40, b = panel.fb;
-                            return `M 0 ${h - b} L 0 ${r} Q 0 0 ${r} 0 L ${w - r} 0 Q ${w} 0 ${w} ${r} L ${w} ${h - b}`;
-                        }
-                    }
-                }
-            }
 
             Row {
                 id: row

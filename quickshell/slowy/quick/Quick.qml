@@ -34,7 +34,7 @@ PanelWindow {
     onOpenChanged: if (open) Sys.earRun([]); else pick = ""
     // close when the cursor is outside the panel and the Hot strip for 500 ms. seen: Hyprland does not report the cursor to a fresh surface until the mouse moves;
     // before the first movement its position is unknown, so the panel waits (otherwise it would open and immediately close with a still cursor)
-    Timer { interval: 500; running: root.open && root.peeked && seen.hovered && !keep.hovered && !edge.hovered; onTriggered: root.close() }
+    Timer { interval: 500; running: root.open && seen.hovered && !keep.hovered && !edge.hovered; onTriggered: root.close() }
 
     property real t: open ? 1 : 0
     Behavior on t { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }

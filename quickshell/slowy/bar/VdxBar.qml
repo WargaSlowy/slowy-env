@@ -25,6 +25,7 @@ PanelWindow {
     visible: Theme.state.barStyle === "vdx"
     color: "transparent"
     WlrLayershell.namespace: "slowy-vdx-bar"
+    WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.expanded ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     // the pill geometry is in the same unscaled px, so the reservation must match it exactly
     exclusiveZone: 8 + Theme.state.pillHeight + Theme.state.topGap
@@ -138,18 +139,39 @@ PanelWindow {
                     spacing: 5
                     Repeater {
                         model: root.count
-                        Rectangle {
+                        Item {
+                            id: wsItem
                             required property int index
                             readonly property int n: index + 1
                             readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
                             readonly property bool on: root.active === n
+                            readonly property bool nums: Theme.state.barWs === "number"
                             anchors.verticalCenter: parent.verticalCenter
-                            width: on ? 18 : 6
-                            height: 6
-                            radius: 3
-                            color: on ? Theme.fg : Theme.fade(Theme.fg, occ ? 0.65 : 0.22)
+                            width: nums ? 20 : (on ? 24 : 8)
+                            height: nums ? 20 : 8
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: nums ? 10 : 4
+                                color: wsItem.nums
+                                    ? (wsItem.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, wsItem.occ ? 0.12 : 0.06))
+                                    : (wsItem.on ? Theme.fg : Theme.fade(Theme.fg, wsItem.occ ? 0.65 : 0.22))
+                                Behavior on color { ColorAnimation { duration: Theme.t } }
+                            }
                             Behavior on width { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
-                            MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.go(parent.n) }
+
+                            Lb {
+                                id: wsLbl
+                                visible: wsItem.nums
+                                anchors.centerIn: parent
+                                family: Theme.state.barFont
+                                text: wsItem.n
+                                px: 9
+                                color: wsItem.on ? Theme.fg : wsItem.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45)
+                            }
+
+                            HoverHandler { cursorShape: Qt.PointingHandCursor }
+                            MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(wsItem.n) }
                         }
                     }
                 }
