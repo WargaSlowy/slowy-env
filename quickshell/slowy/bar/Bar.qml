@@ -219,13 +219,19 @@ PanelWindow {
                             required property string modelData
                             readonly property bool quick: modelData !== "mode" && modelData !== "power"
                             anchors.verticalCenter: parent.verticalCenter
-                            sourceComponent: (modelData !== "wifi" && modelData !== "sound") ? (root.parts[modelData] ?? null) : null
+                            sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
                             visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                             TapHandler { enabled: part.quick; onTapped: root.trayClicked() }
                             HoverHandler { enabled: part.quick; cursorShape: Qt.PointingHandCursor }
                         }
                     }
                 }
+            }
+
+            Loader {
+                anchors.verticalCenter: parent.verticalCenter
+                sourceComponent: Theme.state.bar.includes("power") ? root.parts.power : null
+                visible: !!sourceComponent
             }
         }
     }
@@ -411,9 +417,15 @@ PanelWindow {
     }
     Component {
         id: powerC
-        Icon {
-            text: "\u{F0425}"
-            color: pwr.hovered ? Theme.fg : Theme.grey
+        Rectangle {
+            width: 26; height: 26; radius: 8
+            color: Theme.red
+            Icon {
+                anchors.centerIn: parent
+                text: "\u{F0425}"
+                font.pixelSize: 14
+                color: Theme.bg
+            }
             HoverHandler { id: pwr; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.powerClicked() }
         }

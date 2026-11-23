@@ -253,6 +253,12 @@ PanelWindow {
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: root.trayClicked() }
                 }
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: root.parts.power
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: root.powerClicked() }
+                }
             }
         }
 
@@ -563,7 +569,7 @@ PanelWindow {
                     spacing: 6
                     readonly property int chipHeight: 32
                     Repeater {
-                        model: Theme.state.bar.filter(m => m !== "sound" && m !== "wifi")
+                        model: Theme.state.bar.filter(m => m !== "sound" && m !== "wifi" && m !== "power")
                         Rectangle {
                             id: chip
                             required property string modelData
@@ -964,6 +970,10 @@ PanelWindow {
     }
     Component {
         id: powerC
-        Icon { text: "\u{F0425}"; font.pixelSize: 14 + Theme.state.barIconGrow; color: Theme.grey }
+        Rectangle {
+            width: 24; height: 24; radius: 7
+            color: Theme.red
+            Icon { anchors.centerIn: parent; text: "\u{F0425}"; font.pixelSize: 13; color: Theme.bg }
+        }
     }
 }
