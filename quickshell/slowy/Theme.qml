@@ -115,6 +115,9 @@ Singleton {
             property string metaFont: "JetBrainsMono Nerd Font"  // date and notification line
             property string barFont: "JetBrainsMono Nerd Font"   // bar labels
             property string name: ""       // in the greeting; empty means $USER
+            property bool showHomeClock: true // prefs · LOOK: home clock digits
+            property bool showHomeGreet: true // prefs · LOOK: greeting and name
+            property bool showHomeMeta: true  // prefs · LOOK: date and notification line
             property string scheme: "everblush" // prefs · LOOK: everblush | aphelion
             // wallpaper (wall/Walls picker, drawn by components/Wall): image path; empty means background color. The picker folder can be changed here
             property string wall: Quickshell.env("HOME") + "/.config/quickshell/slowy/assets/warga_slowy_logo.svg"

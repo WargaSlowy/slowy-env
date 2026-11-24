@@ -52,6 +52,7 @@ PanelWindow {
         id: stage
 
         Row {
+            visible: Theme.state.showHomeClock
             x: 182
             y: 150
             Num { text: Theme.hh(clock.date); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize }
@@ -59,6 +60,7 @@ PanelWindow {
             Num { text: Qt.formatTime(clock.date, "mm"); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize }
         }
         Lb {
+            visible: Theme.state.showHomeMeta
             x: 190
             y: 448 + root.textDrop
             text: `${root.en.toString(clock.date, "dddd · d MMMM")} · week ${root.week(clock.date)}`
@@ -66,6 +68,7 @@ PanelWindow {
             font.family: Theme.state.metaFont
         }
         Text {
+            visible: Theme.state.showHomeGreet
             x: 188
             y: 515 + root.textDrop
             textFormat: Text.StyledText
@@ -75,6 +78,7 @@ PanelWindow {
             color: Theme.fg
         }
         Row {
+            visible: Theme.state.showHomeMeta
             x: 190
             y: 720 + root.textDrop
             spacing: 40
@@ -227,7 +231,7 @@ PanelWindow {
             id: budsW
             W {
                 round: true
-                Ring { anchors { fill: parent; margins: 12 } f: root.buds ? root.buds.battery : Sys.vol }
+                Ring { anchors { fill: parent; margins: 4 } f: root.buds ? root.buds.battery : Sys.vol }
                 Column {
                     anchors.centerIn: parent
                     Icon { anchors.horizontalCenter: parent.horizontalCenter; text: root.buds ? "\u{F02CB}" : "\u{F057E}"; font.pixelSize: 30 }
@@ -342,7 +346,7 @@ PanelWindow {
         radius: 110
         color: Theme.s1
         border { width: 1; color: Theme.s2 }
-        Ring { anchors { fill: parent; margins: 12 } f: rw.f; on: rw.on }
+        Ring { anchors { fill: parent; margins: 4 } f: rw.f; on: rw.on }
         Column {
             anchors.centerIn: parent
             Num { anchors.horizontalCenter: parent.horizontalCenter; text: rw.value; font.pixelSize: 72 }

@@ -242,6 +242,7 @@ PanelWindow {
                     }
                     Num {
                         text: word.modelData
+                        font.family: Theme.nf
                         font.pixelSize: word.on ? 112 : 46
                         color: word.on ? Theme.fg : Theme.mute
                         Behavior on font.pixelSize { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
@@ -692,6 +693,7 @@ PanelWindow {
 
                 Mini {
                     Row {
+                        visible: Theme.state.showHomeClock
                         x: 60
                         y: 52
                         Num { id: hrs; text: Theme.hh(clock.date); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize * 0.4 }
@@ -699,8 +701,9 @@ PanelWindow {
                         Num { text: Qt.formatTime(clock.date, "mm"); font.family: Theme.state.clockFont; font.pixelSize: Theme.state.clockSize * 0.4 }
                         Lb { visible: !Theme.state.clock24; anchors.baseline: hrs.baseline; leftPadding: 12; text: clock.date.getHours() < 12 ? "am" : "pm" }
                     }
-                    Lb { x: 64; y: 172 + parent.textDrop; text: Qt.locale("en_US").toString(clock.date, "dddd · d MMMM"); px: 11; font.family: Theme.state.metaFont }
+                    Lb { visible: Theme.state.showHomeMeta; x: 64; y: 172 + parent.textDrop; text: Qt.locale("en_US").toString(clock.date, "dddd · d MMMM"); px: 11; font.family: Theme.state.metaFont }
                     Text {
+                        visible: Theme.state.showHomeGreet
                         x: 62
                         y: 232 + parent.textDrop
                         textFormat: Text.StyledText
@@ -709,7 +712,7 @@ PanelWindow {
                         lineHeight: 1.1
                         color: Theme.fg
                     }
-                    Lb { x: 64; y: 300 + parent.textDrop; text: "0 notifications"; px: 9; font.family: Theme.state.metaFont }
+                    Lb { visible: Theme.state.showHomeMeta; x: 64; y: 300 + parent.textDrop; text: "0 notifications"; px: 9; font.family: Theme.state.metaFont }
                     // Slowy strips: volume on the right, progress at the bottom
                     Seg { visible: Theme.state.edges; x: parent.width - 12; y: 140; width: 4; height: 200; n: 12; f: 0.6; vertical: true }
                     Seg { visible: Theme.state.edges; x: 230; y: parent.height - 10; width: 300; height: 4; n: 24; f: 0.4 }
@@ -727,6 +730,9 @@ PanelWindow {
                     Toggle { width: 200; text: "24 hours"; on: Theme.state.clock24; onFlip: Theme.state.clock24 = !Theme.state.clock24 }
                     Toggle { width: 200; text: "blink"; on: Theme.state.blink; onFlip: Theme.state.blink = !Theme.state.blink }
                     Toggle { width: 200; text: "edges"; on: Theme.state.edges; onFlip: Theme.state.edges = !Theme.state.edges }
+                    Toggle { width: 200; text: "show clock"; on: Theme.state.showHomeClock; onFlip: Theme.state.showHomeClock = !Theme.state.showHomeClock }
+                    Toggle { width: 200; text: "show greet"; on: Theme.state.showHomeGreet; onFlip: Theme.state.showHomeGreet = !Theme.state.showHomeGreet }
+                    Toggle { width: 200; text: "show meta"; on: Theme.state.showHomeMeta; onFlip: Theme.state.showHomeMeta = !Theme.state.showHomeMeta }
                     Act {
                         icon: "\u{F02E9}"
                         text: "wallpaper"
