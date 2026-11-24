@@ -150,7 +150,7 @@ PanelWindow {
                             readonly property bool on: root.active === n
                             readonly property bool nums: Theme.state.barWs === "number"
                             anchors.verticalCenter: parent.verticalCenter
-                            width: nums ? 20 : (on ? 24 : 8)
+                            width: nums ? (on ? 40 : 20) : (on ? 34 : 8)
                             height: nums ? 20 : 8
 
                             Rectangle {

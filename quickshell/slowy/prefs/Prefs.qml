@@ -1136,9 +1136,9 @@ PanelWindow {
                 Lb { text: "launcher ui" }
                 Pick {
                     label: "style"
-                    opts: ["classic", "compact", "cards"]
-                    cur: Math.max(0, ["classic", "compact", "cards"].indexOf(Theme.state.launcherStyle))
-                    onPicked: i => Theme.state.launcherStyle = ["classic", "compact", "cards"][i]
+                    opts: ["classic", "compact", "visual"]
+                    cur: Math.max(0, ["classic", "compact", "visual"].indexOf(Theme.state.launcherStyle))
+                    onPicked: i => Theme.state.launcherStyle = ["classic", "compact", "visual"][i]
                 }
                 Lb { text: "Super to open launcher · style applies immediately"; color: Theme.grey }
             }

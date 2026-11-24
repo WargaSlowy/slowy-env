@@ -80,20 +80,37 @@ Rectangle {
     Popup {
         id: list
         property int sel: Math.max(0, root.cur)
+        property real originX: 0
+        property real spaceBelow: 320
+        property real spaceAbove: 320
+        readonly property real viewW: Overlay.overlay ? Overlay.overlay.width : 1200
+        readonly property real viewH: Overlay.overlay ? Overlay.overlay.height : 800
+        readonly property real wantH: root.opts.length * 48 + 16
+        readonly property bool openUp: spaceBelow < Math.min(wantH, 320) && spaceAbove > spaceBelow
+        readonly property real availH: Math.max(0, (openUp ? spaceAbove : spaceBelow) - 16)
+        function place() {
+            const pt = root.mapToItem(Overlay.overlay, 0, 0);
+            originX = pt.x;
+            spaceAbove = pt.y - 8;
+            spaceBelow = viewH - (pt.y + root.height * Theme.s) - 8;
+        }
         visible: false
-        x: 0
-        y: root.height + 12
+        // ponytail: popup lives in the unscaled overlay, so clamp in device px then convert back to parent units
+        x: Math.max((8 - originX) / Theme.s, Math.min(0, (viewW - 8 - originX - width) / Theme.s))
+        y: openUp ? -(height + 12) / Theme.s : (root.height * Theme.s + 12) / Theme.s
         z: 10
         width: Math.max(root.width, 340)
-        height: Math.min(root.opts.length * 48 + 16, 420)
+        height: Math.max(1, Math.min(wantH, availH, 420))
         padding: 0
         closePolicy: Popup.NoAutoClose
+        onAboutToShow: { place(); flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, sel * 48 - flick.height / 2 + 24)); }
         background: Rectangle {
             radius: 26
             color: Theme.s2
             border { width: 1; color: Theme.s3 }
         }
         contentItem: Flickable {
+            id: flick
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             contentHeight: root.opts.length * 48 + 16

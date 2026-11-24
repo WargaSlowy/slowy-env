@@ -131,7 +131,7 @@ Singleton {
             property var bar: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
-            property string launcherStyle: "classic" // launcher ui: classic | compact | cards
+            property string launcherStyle: "classic" // launcher ui: classic | compact | visual
             property string barWs: "circle" // workspace indicator: circle | number
             property int barRadius: 16        // vdx pill corner radius, px; 0 is square
             property int barBorder: 1         // vdx pill frame width, px; 0 removes it
@@ -152,7 +152,7 @@ Singleton {
     }
 
     // bento widgets: id to width in cells (3 columns x 3 rows of 220). What does not fit is not shown
-    readonly property var kinds: ({ weather: 1, calendar: 1, cpu: 1, ram: 1, gpu: 1, disk: 1, battery: 1, buds: 1, player: 2, system: 3, cat: 1, cava: 1 })
+    readonly property var kinds: ({ weather: 1, calendar: 1, cpu: 1, ram: 1, gpu: 1, disk: 1, battery: 1, buds: 1, player: 2, system: 3, cava: 1 })
     // deck sections
     readonly property var decks: ["clock", "weather", "perf", "net", "media"]
     // bar tray
