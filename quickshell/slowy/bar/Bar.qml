@@ -10,8 +10,8 @@ import qs
 import qs.components
 import qs.settings
 
-// bar: Caelestia-inspired horizontal top bar, adapted to Slowy. A clean rounded strip with a
-// center notch gap for the clock/Slowy. Workspaces, title, tray, mode and power keep Slowy behavior.
+// bar: Caelestia-inspired bar adapted to Slowy. Horizontal (top) or vertical (left).
+// Workspaces, title/apps, tray, mode and power keep Slowy behavior.
 PanelWindow {
     id: root
 
@@ -19,8 +19,13 @@ PanelWindow {
     signal trayClicked
     signal powerClicked
 
-    anchors { top: true; left: true; right: true }
-    implicitHeight: Math.ceil(48 * Theme.s)
+    readonly property bool vert: Theme.state.barOrient === "vertical"
+    anchors.top: true
+    anchors.left: true
+    anchors.right: !vert
+    anchors.bottom: vert
+    implicitHeight: vert ? 0 : Math.ceil(48 * Theme.s)
+    implicitWidth: vert ? Math.ceil(48 * Theme.s) : 0
     color: "transparent"
     WlrLayershell.namespace: "slowy-bar"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -39,199 +44,311 @@ PanelWindow {
 
         readonly property int barH: 40
         readonly property int pad: 14
-        readonly property real leftW: leftRow.implicitWidth + pad * 2
-        readonly property real rightW: rightRow.implicitWidth + pad * 2
 
         WheelHandler { onWheel: e => root.go(e.angleDelta.y > 0 ? "-1" : "+1") }
 
-        // background provided by Frame.qml for a unified monitor bezel
+        // ---- horizontal layout ----
+        Item {
+            anchors.fill: parent
+            visible: !root.vert
 
-        // ---- left: mark, workspaces, active window ----
-        Row {
-            id: leftRow
-            x: 22
-            y: 4
-            height: stage.barH
-            spacing: 12
-
-            // mark
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 28; height: 28; radius: 14
-                color: markHov.hovered ? Theme.s2 : "transparent"
-                Behavior on color { ColorAnimation { duration: Theme.t } }
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 8; height: 8; radius: 4
-                    color: Sys.live ? Theme.red : Theme.fg
-                }
-                HoverHandler { id: markHov; cursorShape: Qt.PointingHandCursor }
-                MouseArea { anchors.fill: parent; onClicked: root.markClicked() }
-            }
-
-            // workspaces: Caelestia-inspired pills
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                height: 30
-                width: wsRow.implicitWidth + 16
-                radius: 15
-                color: Theme.s1
-                Row {
-                    id: wsRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Repeater {
-                        model: root.count
-                        Item {
-                            id: ws
-                            required property int index
-                            readonly property int n: index + 1
-                            readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
-                            readonly property bool on: root.active === n
-                            readonly property bool nums: Theme.state.barWs === "number"
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: nums ? (on ? 42 : 22) : (on ? 40 : 10)
-                            height: nums ? 22 : 10
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: nums ? 11 : 5
-                                color: ws.nums
-                                    ? (ws.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, ws.occ ? 0.12 : 0.06))
-                                    : (ws.on ? Theme.fg : ws.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
-                                Behavior on color { ColorAnimation { duration: Theme.t } }
-                            }
-                            Behavior on width { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
-
-                            Lb {
-                                id: wsLbl
-                                visible: ws.nums
-                                anchors.centerIn: parent
-                                family: Theme.state.barFont
-                                text: ws.n
-                                px: 10
-                                color: ws.on ? Theme.fg : ws.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45)
-                            }
-
-                            HoverHandler {
-                                cursorShape: Qt.PointingHandCursor
-                                onHoveredChanged: {
-                                    if (hovered && ws.occ) { root.wsPeek(ws, ws.n); root.wsPreviewHot = true; }
-                                    else if (!hovered) root.wsPreviewHot = false;
-                                }
-                            }
-                            MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(ws.n) }
-                        }
-                    }
-                }
-            }
-
-            Lb { family: Theme.state.barFont;
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, 260)
-                visible: Theme.state.barTitle && (Hyprland.focusedWorkspace?.toplevels.values.length ?? 0) > 0
-                elide: Text.ElideRight
-                text: root.top ? `${root.top.appId.split(".").pop()} · ${root.top.title}` : ""
-                px: 10
-                color: Theme.fade(Theme.fg, 0.7)
-            }
-        }
-
-        // ---- center: active workspace app icons ----
-        Rectangle {
-            id: appPill
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: leftRow.verticalCenter
-            height: 30
-            visible: appRow.implicitWidth > 0
-            width: appRow.implicitWidth + 20
-            radius: 15
-            color: Theme.s1
             Row {
-                id: appRow
-                anchors.centerIn: parent
-                spacing: 8
-                Repeater {
-                    model: Hyprland.focusedWorkspace?.toplevels.values ?? []
-                    Item {
-                        required property var modelData
-                        readonly property string cls: modelData.lastIpcObject?.class ?? ""
-                        readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
-                        width: 18; height: 18
-                        Image {
-                            anchors.fill: parent
-                            visible: status === Image.Ready
-                            source: parent.icon
-                            sourceSize: Qt.size(18, 18)
-                            asynchronous: true
-                        }
-                        Icon {
-                            anchors.centerIn: parent
-                            visible: !parent.icon
-                            text: "\u{F003B}"
-                            font.pixelSize: 14
-                            color: Theme.grey
+                id: leftRow
+                x: 22
+                y: 4
+                height: 40
+                spacing: 12
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 28; height: 28; radius: 14
+                    color: markHov.hovered ? Theme.s2 : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.t } }
+                    Image { anchors.centerIn: parent; source: "../assets/icon_start.png"; sourceSize: Qt.size(22, 22); width: 22; height: 22; fillMode: Image.PreserveAspectFit }
+                    Rectangle { anchors { right: parent.right; top: parent.top } width: 6; height: 6; radius: 3; color: Theme.red; visible: Sys.live }
+                    HoverHandler { id: markHov; cursorShape: Qt.PointingHandCursor }
+                    MouseArea { anchors.fill: parent; onClicked: root.markClicked() }
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 30
+                    width: wsRowH.implicitWidth + 16
+                    radius: 15
+                    color: Theme.s1
+                    Row {
+                        id: wsRowH
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Repeater {
+                            model: root.count
+                            Item {
+                                id: wsH
+                                required property int index
+                                readonly property int n: index + 1
+                                readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
+                                readonly property bool on: root.active === n
+                                readonly property bool nums: Theme.state.barWs === "number"
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: nums ? (on ? 42 : 22) : (on ? 40 : 10)
+                                height: nums ? 22 : 10
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: wsH.nums ? 11 : 5
+                                    color: wsH.nums ? (wsH.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, wsH.occ ? 0.12 : 0.06))
+                                                    : (wsH.on ? Theme.fg : wsH.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
+                                    Behavior on color { ColorAnimation { duration: Theme.t } }
+                                }
+                                Behavior on width { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                                Lb { visible: wsH.nums; anchors.centerIn: parent; family: Theme.state.barFont; text: wsH.n; px: 10; color: wsH.on ? Theme.fg : wsH.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45) }
+                                HoverHandler {
+                                    cursorShape: Qt.PointingHandCursor
+                                    onHoveredChanged: {
+                                        if (hovered && wsH.occ) { root.wsPeek(wsH, wsH.n); root.wsPreviewHot = true; }
+                                        else if (!hovered) root.wsPreviewHot = false;
+                                    }
+                                }
+                                MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(wsH.n) }
+                            }
                         }
                     }
+                }
+
+                Lb {
+                    family: Theme.state.barFont
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, 260)
+                    visible: Theme.state.barTitle && (Hyprland.focusedWorkspace?.toplevels.values.length ?? 0) > 0
+                    elide: Text.ElideRight
+                    text: root.top ? `${root.top.appId.split(".").pop()} · ${root.top.title}` : ""
+                    px: 10
+                    color: Theme.fade(Theme.fg, 0.7)
+                }
+            }
+
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: leftRow.verticalCenter
+                height: 30
+                visible: appRowH.implicitWidth > 0
+                width: appRowH.implicitWidth + 20
+                radius: 15
+                color: Theme.s1
+                Row {
+                    id: appRowH
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Repeater {
+                        model: Hyprland.focusedWorkspace?.toplevels.values ?? []
+                        Item {
+                            required property var modelData
+                            readonly property string cls: modelData.lastIpcObject?.class ?? ""
+                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            width: 18; height: 18
+                            Image { anchors.fill: parent; visible: status === Image.Ready; source: parent.icon; sourceSize: Qt.size(18, 18); asynchronous: true }
+                            Icon { anchors.centerIn: parent; visible: !parent.icon; text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey }
+                        }
+                    }
+                }
+            }
+
+            Row {
+                id: rightRow
+                x: stage.width - width - 22
+                y: 4
+                height: 40
+                spacing: 6
+
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
+                    visible: !!sourceComponent
+                    TapHandler { onTapped: root.trayClicked() }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: Theme.state.bar.includes("sound") ? root.parts.sound : null
+                    visible: !!sourceComponent
+                    TapHandler { onTapped: root.trayClicked() }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: 30
+                    visible: trayRowH.implicitWidth > 0
+                    width: trayRowH.implicitWidth + 20
+                    radius: 15
+                    color: Theme.s1
+                    Row {
+                        id: trayRowH
+                        anchors.centerIn: parent
+                        spacing: 14
+                        Repeater {
+                            model: Theme.state.bar
+                            Loader {
+                                id: partH
+                                required property string modelData
+                                readonly property bool quick: modelData !== "mode" && modelData !== "power"
+                                anchors.verticalCenter: parent.verticalCenter
+                                sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
+                                TapHandler { enabled: partH.quick; onTapped: root.trayClicked() }
+                                HoverHandler { enabled: partH.quick; cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+                    }
+                }
+
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: Theme.state.bar.includes("power") ? root.parts.power : null
+                    visible: !!sourceComponent
                 }
             }
         }
 
-        // ---- right: tray in Theme.state.bar order (wifi is its own pill) ----
-        Row {
-            id: rightRow
-            x: stage.width - width - 22
-            y: 4
-            height: stage.barH
-            spacing: 6
+        // ---- vertical layout (left) ----
+        Item {
+            anchors.fill: parent
+            visible: root.vert
 
-            Loader {
-                anchors.verticalCenter: parent.verticalCenter
-                sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
-                visible: !!sourceComponent
-                TapHandler { onTapped: root.trayClicked() }
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
-            }
+            Column {
+                x: 10
+                y: 10
+                spacing: 10
+                Rectangle {
+                    width: 28; height: 28; radius: 14
+                    color: markHovV.hovered ? Theme.s2 : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.t } }
+                    Image { anchors.centerIn: parent; source: "../assets/icon_start.png"; sourceSize: Qt.size(22, 22); width: 22; height: 22; fillMode: Image.PreserveAspectFit }
+                    Rectangle { anchors { right: parent.right; top: parent.top } width: 6; height: 6; radius: 3; color: Theme.red; visible: Sys.live }
+                    HoverHandler { id: markHovV; cursorShape: Qt.PointingHandCursor }
+                    MouseArea { anchors.fill: parent; onClicked: root.markClicked() }
+                }
 
-            Loader {
-                anchors.verticalCenter: parent.verticalCenter
-                sourceComponent: Theme.state.bar.includes("sound") ? root.parts.sound : null
-                visible: !!sourceComponent
-                TapHandler { onTapped: root.trayClicked() }
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
-            }
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                height: 30
-                visible: trayRow.implicitWidth > 0
-                width: trayRow.implicitWidth + 20
-                radius: 15
-                color: Theme.s1
-                Row {
-                    id: trayRow
-                    anchors.centerIn: parent
-                    spacing: 14
-                    Repeater {
-                        model: Theme.state.bar
-                        Loader {
-                            id: part
-                            required property string modelData
-                            readonly property bool quick: modelData !== "mode" && modelData !== "power"
-                            anchors.verticalCenter: parent.verticalCenter
-                            sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
-                            visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
-                            TapHandler { enabled: part.quick; onTapped: root.trayClicked() }
-                            HoverHandler { enabled: part.quick; cursorShape: Qt.PointingHandCursor }
+                Rectangle {
+                    width: 30
+                    height: wsColV.implicitHeight + 12
+                    radius: 15
+                    color: Theme.s1
+                    Column {
+                        id: wsColV
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Repeater {
+                            model: root.count
+                            Item {
+                                id: wsV
+                                required property int index
+                                readonly property int n: index + 1
+                                readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
+                                readonly property bool on: root.active === n
+                                readonly property bool nums: Theme.state.barWs === "number"
+                                width: nums ? 22 : 10
+                                height: nums ? (on ? 28 : 22) : (on ? 24 : 10)
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: wsV.nums ? 11 : 5
+                                    color: wsV.nums ? (wsV.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, wsV.occ ? 0.12 : 0.06))
+                                                    : (wsV.on ? Theme.fg : wsV.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
+                                    Behavior on color { ColorAnimation { duration: Theme.t } }
+                                }
+                                Behavior on height { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
+                                Lb { visible: wsV.nums; anchors.centerIn: parent; family: Theme.state.barFont; text: wsV.n; px: 9; color: wsV.on ? Theme.fg : wsV.occ ? Theme.fade(Theme.fg, 0.8) : Theme.fade(Theme.fg, 0.45) }
+                                HoverHandler {
+                                    cursorShape: Qt.PointingHandCursor
+                                    onHoveredChanged: {
+                                        if (hovered && wsV.occ) { root.wsPeek(wsV, wsV.n); root.wsPreviewHot = true; }
+                                        else if (!hovered) root.wsPreviewHot = false;
+                                    }
+                                }
+                                MouseArea { anchors.fill: parent; anchors.margins: -4; onClicked: root.go(wsV.n) }
+                            }
                         }
                     }
                 }
             }
 
-            Loader {
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
-                sourceComponent: Theme.state.bar.includes("power") ? root.parts.power : null
-                visible: !!sourceComponent
+                width: 30
+                visible: appColV.implicitHeight > 0
+                height: appColV.implicitHeight + 16
+                radius: 15
+                color: Theme.s1
+                Column {
+                    id: appColV
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Repeater {
+                        model: Hyprland.focusedWorkspace?.toplevels.values ?? []
+                        Item {
+                            required property var modelData
+                            readonly property string cls: modelData.lastIpcObject?.class ?? ""
+                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            width: 18; height: 18
+                            Image { anchors.fill: parent; visible: status === Image.Ready; source: parent.icon; sourceSize: Qt.size(18, 18); asynchronous: true }
+                            Icon { anchors.centerIn: parent; visible: !parent.icon; text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
+                spacing: 8
+
+                Loader {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
+                    visible: !!sourceComponent
+                    TapHandler { onTapped: root.trayClicked() }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+                Loader {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    sourceComponent: Theme.state.bar.includes("sound") ? root.parts.sound : null
+                    visible: !!sourceComponent
+                    TapHandler { onTapped: root.trayClicked() }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                }
+
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 30
+                    visible: trayColV.implicitHeight > 0
+                    height: trayColV.implicitHeight + 16
+                    radius: 15
+                    color: Theme.s1
+                    Column {
+                        id: trayColV
+                        anchors.centerIn: parent
+                        spacing: 10
+                        Repeater {
+                            model: Theme.state.bar
+                            Loader {
+                                id: partV
+                                required property string modelData
+                                readonly property bool quick: modelData !== "mode" && modelData !== "power"
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
+                                TapHandler { enabled: partV.quick; onTapped: root.trayClicked() }
+                                HoverHandler { enabled: partV.quick; cursorShape: Qt.PointingHandCursor }
+                            }
+                        }
+                    }
+                }
+
+                Loader {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    sourceComponent: Theme.state.bar.includes("power") ? root.parts.power : null
+                    visible: !!sourceComponent
+                }
             }
         }
     }
@@ -241,10 +358,12 @@ PanelWindow {
     Component {
         id: wifiC
         Item {
-            implicitWidth: wp.implicitWidth + 8
-            implicitHeight: wp.implicitHeight
+            implicitWidth: root.vert ? 26 : wp.implicitWidth + 8
+            implicitHeight: root.vert ? 26 : wp.implicitHeight
+            Icon { visible: root.vert; anchors.centerIn: parent; text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"; font.pixelSize: 16; color: Theme.fg }
             Rectangle {
                 id: wp
+                visible: !root.vert
                 anchors.centerIn: parent
                 readonly property string ssid: !Networking.wifiEnabled ? "Off" : (root.net?.name ?? "Wi-Fi")
                 implicitWidth: iconSeg.width + Math.min(name.implicitWidth, 96) + 18
@@ -255,11 +374,7 @@ PanelWindow {
                 Rectangle {
                     id: iconSeg
                     anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                    width: 26
-                    radius: 13
-                    topRightRadius: 0
-                    bottomRightRadius: 0
-                    color: Theme.yellow
+                    width: 26; radius: 13; topRightRadius: 0; bottomRightRadius: 0; color: Theme.yellow
                     Icon { anchors.centerIn: parent; text: Networking.wifiEnabled ? "\u{F05A9}" : "\u{F05AA}"; font.pixelSize: 13; color: Theme.bg }
                 }
                 Text {
@@ -273,142 +388,85 @@ PanelWindow {
             }
         }
     }
-    Component {
-        id: btC
-        Icon {
-            text: Bluetooth.defaultAdapter?.enabled ? "\u{F00AF}" : "\u{F00B2}"
-            color: Bluetooth.devices.values.some(d => d.connected) ? Theme.fg : Theme.grey
-        }
-    }
+    Component { id: btC; Icon { text: Bluetooth.defaultAdapter?.enabled ? "\u{F00AF}" : "\u{F00B2}"; color: Bluetooth.devices.values.some(d => d.connected) ? Theme.fg : Theme.grey } }
     Component {
         id: soundC
         Item {
             id: vpill
-            implicitWidth: sp.implicitWidth + 8
-            implicitHeight: sp.implicitHeight
-            width: implicitWidth
-            height: implicitHeight
+            implicitWidth: root.vert ? 26 : sp.implicitWidth + 8; implicitHeight: root.vert ? 26 : sp.implicitHeight
+            width: implicitWidth; height: implicitHeight
             property bool hot: false
             HoverHandler { onHoveredChanged: vpill.hot = hovered }
+            Icon { visible: root.vert; anchors.centerIn: parent; text: Sys.muted ? "\u{F075F}" : "\u{F057E}"; font.pixelSize: 16; color: Theme.fg }
             Rectangle {
                 id: sp
+                visible: !root.vert
                 anchors.centerIn: parent
                 readonly property string label: Sys.muted ? "Mute" : Math.round(Sys.vol * 100) + "%"
                 implicitWidth: sIcon.width + (vpill.hot ? 72 : Math.min(sName.implicitWidth, 52)) + 18
-                implicitHeight: 26
-                radius: 13
-                color: Theme.s2
-                clip: true
+                implicitHeight: 26; radius: 13; color: Theme.s2; clip: true
                 Behavior on implicitWidth { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-
                 Rectangle {
                     id: sIcon
                     anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
-                    width: 26
-                    radius: 13
-                    topRightRadius: 0
-                    bottomRightRadius: 0
-                    color: "#67b0e8"
+                    width: 26; radius: 13; topRightRadius: 0; bottomRightRadius: 0; color: "#67b0e8"
                     Icon { anchors.centerIn: parent; text: Sys.muted ? "\u{F075F}" : "\u{F057E}"; font.pixelSize: 13; color: Theme.bg }
                 }
-
                 Text {
                     id: sName
                     anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                     text: sp.label
                     font { family: Theme.ui; pixelSize: 12; weight: Font.Medium }
                     color: Theme.fg
-                    opacity: vpill.hot ? 0 : 1
-                    Behavior on opacity { NumberAnimation { duration: 100 } }
+                    opacity: vpill.hot ? 0 : 1; Behavior on opacity { NumberAnimation { duration: 100 } }
                 }
-
                 Rectangle {
                     anchors { left: sIcon.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                    height: 6
-                    radius: 3
-                    color: Theme.s3
-                    opacity: vpill.hot ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
-                    Rectangle {
-                        width: parent.width * Math.max(0, Math.min(1, Sys.vol))
-                        height: parent.height
-                        radius: 3
-                        color: Sys.muted ? Theme.grey : "#67b0e8"
-                        Behavior on width { NumberAnimation { duration: 80 } }
-                    }
+                    height: 6; radius: 3; color: Theme.s3
+                    opacity: vpill.hot ? 1 : 0; Behavior on opacity { NumberAnimation { duration: 120 } }
+                    Rectangle { width: parent.width * Math.max(0, Math.min(1, Sys.vol)); height: parent.height; radius: 3; color: Sys.muted ? Theme.grey : "#67b0e8"; Behavior on width { NumberAnimation { duration: 80 } } }
                 }
             }
             WheelHandler { acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad; onWheel: e => Sys.setVol(Sys.vol + (e.angleDelta.y > 0 ? 0.05 : -0.05)) }
         }
     }
-    Component {
-        id: notesC
-        Icon {
-            text: Theme.state.dnd ? "\u{F009B}" : "\u{F009A}"
-            color: Notes.list.length ? Theme.fg : Theme.grey
-        }
-    }
-    // battery: bolt while charging, charge grows left to right, fill pulses while charging
+    Component { id: notesC; Icon { text: Theme.state.dnd ? "\u{F009B}" : "\u{F009A}"; color: Notes.list.length ? Theme.fg : Theme.grey } }
     Component {
         id: batC
-        Row {
+        Item {
             id: batc
+            implicitWidth: root.vert ? 26 : batRow.implicitWidth
+            implicitHeight: root.vert ? 26 : batRow.implicitHeight
             HoverHandler { onHoveredChanged: { root.batHot = hovered; root.peek(batc); } Component.onDestruction: root.batHot = false }
-            spacing: 6
             readonly property bool ac: !UPower.onBattery
             readonly property bool charging: root.bat.state === UPowerDeviceState.Charging
-            // pulse at 20 frames/s, like the orb in home/Back: an animation would drive the bar on every vsync (120 Hz) for all
-            // charging hours. Cosine with a 2.2 s period, the same two InOutSine segments of 1.1 s
             property real phase: 0
             readonly property real pulse: charging ? 0.675 + 0.325 * Math.cos(phase * Math.PI / 1.1) : 1
             Timer { running: batc.charging; interval: 50; repeat: true; onTriggered: batc.phase = (batc.phase + 0.05) % 2.2; onRunningChanged: batc.phase = 0 }
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 18; height: 18; radius: 5
-                color: batc.ac ? Theme.green : Theme.s3
-                Icon { anchors.centerIn: parent; text: "\u{F140B}"; font.pixelSize: 13; color: batc.ac ? Theme.bg : Theme.fg }
-            }
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 26
-                height: 14
-                radius: 7
-                color: "transparent"
-                border { width: 1.5; color: Theme.grey }
+            Icon { visible: root.vert; anchors.centerIn: parent; text: "\u{F140B}"; font.pixelSize: 16; color: batc.ac ? Theme.green : Theme.fg }
+            Row {
+                id: batRow
+                visible: !root.vert
+                spacing: 6
+                Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; radius: 5; color: batc.ac ? Theme.green : Theme.s3; Icon { anchors.centerIn: parent; text: "\u{F140B}"; font.pixelSize: 13; color: batc.ac ? Theme.bg : Theme.fg } }
                 Rectangle {
-                    x: 3
-                    height: parent.height - 6
-                    width: (parent.width - 6) * root.bat.percentage
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: 4
-                    color: root.batLow ? Theme.red : Theme.fg
-                    opacity: batc.pulse
+                    anchors.verticalCenter: parent.verticalCenter; width: 26; height: 14; radius: 7; color: "transparent"; border { width: 1.5; color: Theme.grey }
+                    Rectangle { x: 3; height: parent.height - 6; width: (parent.width - 6) * root.bat.percentage; anchors.verticalCenter: parent.verticalCenter; radius: 4; color: root.batLow ? Theme.red : Theme.fg; opacity: batc.pulse }
                 }
+                Lb { family: Theme.state.barFont; anchors.verticalCenter: parent.verticalCenter; text: Math.round(root.bat.percentage * 100); px: 10 }
             }
-            Lb { family: Theme.state.barFont; anchors.verticalCenter: parent.verticalCenter; text: Math.round(root.bat.percentage * 100); px: 10 }
         }
     }
-    // power mode as ticks (Rules.modes): ultra shows one, performance shows all; click selects the next,
-    // hovering (also over the battery) shows a card with choices
     Component {
         id: modeC
         Item {
             id: ticks
-            width: 40
-            height: 22
+            width: 40; height: 22
             Row {
-                anchors.centerIn: parent
-                spacing: 2
+                anchors.centerIn: parent; spacing: 2
                 Repeater {
                     model: Rules.modeCount
-                    Rectangle {
-                        required property int index
-                        anchors.bottom: parent.bottom
-                        width: 3
-                        height: 5 + index * 3
-                        radius: 1.5
-                        color: index <= Rules.mode ? Theme.fg : Theme.s3
-                    }
+                    Rectangle { required property int index; anchors.bottom: parent.bottom; width: 3; height: 5 + index * 3; radius: 1.5; color: index <= Rules.mode ? Theme.fg : Theme.s3 }
                 }
             }
             HoverHandler { cursorShape: Qt.PointingHandCursor; onHoveredChanged: { root.tickHot = hovered; root.peek(ticks); } Component.onDestruction: root.tickHot = false }
@@ -418,43 +476,25 @@ PanelWindow {
     Component {
         id: powerC
         Rectangle {
-            width: 26; height: 26; radius: 8
-            color: Theme.red
-            Icon {
-                anchors.centerIn: parent
-                text: "\u{F0425}"
-                font.pixelSize: 14
-                color: Theme.bg
-            }
+            width: 26; height: 26; radius: 8; color: Theme.red
+            Icon { anchors.centerIn: parent; text: "\u{F0425}"; font.pixelSize: 14; color: Theme.bg }
             HoverHandler { id: pwr; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.powerClicked() }
         }
     }
 
-    // ---- battery and power mode: hovering the battery or ticks shows a card below the bar, centered on the
-    // hovered item. Charge in Doto, status, scale; below, modes as circles with ticks: click selects, the item under the
-    // cursor shows what it does. Leaving both the bar and the card fades it out ----
+    // ---- battery and power mode popup ----
     property bool batHot: false
     property bool tickHot: false
     readonly property bool powHot: batHot || tickHot || popHov.hovered
 
-    // workspace preview
-    property int wsPreviewN: -1
-    property real wsPreviewX: 0
-    property bool wsPreviewHot: false
-    readonly property bool wsPopHot: wsPreviewHot || wsPopHov.hovered
-    property bool wsPreviewOpen: false
-    readonly property var wsPreviewWins: (Hyprland.workspaces.values.find(w => w.id === wsPreviewN)?.toplevels.values ?? [])
-    onWsPopHotChanged: wsPopHot ? wsOpenT.restart() : wsCloseT.restart()
-    Timer { id: wsOpenT; interval: 180; onTriggered: if (root.wsPopHot) root.wsPreviewOpen = true }
-    Timer { id: wsCloseT; interval: 250; onTriggered: if (!root.wsPopHot) { root.wsPreviewOpen = false; root.wsPreviewN = -1; } }
-    function wsPeek(it, n) { if (!wsPop.visible || root.wsPreviewN !== n) { root.wsPreviewN = n; root.wsPreviewX = it.mapToItem(stage, it.width / 2, 0).x; } }
-    readonly property bool batLow: UPower.onBattery && root.bat.percentage < 0.15
-    readonly property bool batWarn30: UPower.onBattery && root.bat.percentage <= 0.30
+    property bool batLow: UPower.onBattery && root.bat.percentage < 0.15
+    property bool batWarn30: UPower.onBattery && root.bat.percentage <= 0.30
     onBatWarn30Changed: if (batWarn30) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(root.bat.percentage * 100) + "%"])
-    // the card is centered on the hovered item; it does not jump while visible
+
     property real popX: 0
-    function peek(it) { if (!pop.visible) popX = it.mapToItem(stage, it.width / 2, 0).x; }
+    property real popY: 0
+    function peek(it) { if (!pop.visible) { const p = it.mapToItem(stage, 0, 0); popX = p.x + it.width / 2; popY = p.y + it.height / 2; } }
     property bool powOpen: false
     property int powPeek: -1
     onPowHotChanged: powHot ? powOpenT.restart() : powCloseT.restart()
@@ -471,9 +511,10 @@ PanelWindow {
         property real t: root.powOpen ? 1 : 0
         Behavior on t { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
         visible: t > 0
-        // below the bar, centered on the hovered item; grows downward
         anchor.item: stage
-        anchor.rect: Qt.rect(root.popX - (pop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
+        anchor.rect: root.vert
+            ? Qt.rect(stage.width + 8, root.popY - (pop.implicitHeight / Theme.s) / 2, 1, 1)
+            : Qt.rect(root.popX - (pop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
         anchor.edges: Edges.Top | Edges.Left
         anchor.gravity: Edges.Bottom | Edges.Right
         implicitWidth: Math.ceil(440 * Theme.s)
@@ -489,13 +530,12 @@ PanelWindow {
                 color: Theme.bg
                 border { width: 1; color: Theme.s2 }
                 opacity: pop.t
-                transform: Translate { y: -16 * (1 - pop.t) }
+                transform: Translate { x: root.vert ? -16 * (1 - pop.t) : 0; y: root.vert ? 0 : -16 * (1 - pop.t) }
                 HoverHandler { id: popHov }
 
                 Column {
                     id: body
-                    x: 26
-                    y: 26
+                    x: 26; y: 26
                     width: parent.width - 52
                     spacing: 18
 
@@ -522,57 +562,56 @@ PanelWindow {
                                 readonly property bool on: Rules.mode === index
                                 spacing: 10
                                 Rectangle {
-                                    width: 80
-                                    height: 80
-                                    radius: 40
+                                    width: 80; height: 80; radius: 40
                                     color: mo.on ? Theme.fg : moHov.hovered ? Theme.s3 : Theme.s2
                                     Behavior on color { ColorAnimation { duration: Theme.t } }
-                                    // ticks: how many are lit indicates the level
                                     Row {
-                                        anchors.centerIn: parent
-                                        spacing: 4
+                                        anchors.centerIn: parent; spacing: 4
                                         Repeater {
                                             model: 4
                                             Rectangle {
                                                 required property int index
                                                 anchors.bottom: parent.bottom
-                                                width: 5
-                                                height: 8 + index * 6
-                                                radius: 2.5
+                                                width: 5; height: 8 + index * 6; radius: 2.5
                                                 color: index <= mo.index ? (mo.on ? Theme.ink : Theme.fg) : (mo.on ? Theme.mute : Theme.s3)
                                             }
                                         }
                                     }
-                                    HoverHandler {
-                                        id: moHov
-                                        cursorShape: Qt.PointingHandCursor
-                                        onHoveredChanged: if (hovered) root.powPeek = mo.index; else if (root.powPeek === mo.index) root.powPeek = -1
-                                    }
+                                    HoverHandler { id: moHov; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) root.powPeek = mo.index; else if (root.powPeek === mo.index) root.powPeek = -1 }
                                     TapHandler { onTapped: Rules.setMode(mo.index) }
                                 }
                                 Lb { family: Theme.state.barFont; anchors.horizontalCenter: parent.horizontalCenter; text: mo.index === 3 ? "max" : Rules.modes[mo.index].name; color: mo.on ? Theme.fg : Theme.grey }
                             }
                         }
                     }
-                    Lb { family: Theme.state.barFont;
-                        readonly property int i: root.powPeek >= 0 ? root.powPeek : Rules.mode
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: `${Rules.modes[i].what} · ${i === 0 ? Rules.rates[0] : Rules.refreshHz} hz`
-                    }
+                    Lb { family: Theme.state.barFont; readonly property int i: root.powPeek >= 0 ? root.powPeek : Rules.mode; width: parent.width; elide: Text.ElideRight; text: `${Rules.modes[i].what} · ${i === 0 ? Rules.rates[0] : Rules.refreshHz} hz` }
                 }
             }
         }
     }
 
     // workspace preview
+    property int wsPreviewN: -1
+    property real wsPreviewX: 0
+    property real wsPreviewY: 0
+    property bool wsPreviewHot: false
+    readonly property bool wsPopHot: wsPreviewHot || wsPopHov.hovered
+    property bool wsPreviewOpen: false
+    readonly property var wsPreviewWins: (Hyprland.workspaces.values.find(w => w.id === wsPreviewN)?.toplevels.values ?? [])
+    onWsPopHotChanged: wsPopHot ? wsOpenT.restart() : wsCloseT.restart()
+    Timer { id: wsOpenT; interval: 180; onTriggered: if (root.wsPopHot) root.wsPreviewOpen = true }
+    Timer { id: wsCloseT; interval: 250; onTriggered: if (!root.wsPopHot) { root.wsPreviewOpen = false; root.wsPreviewN = -1; } }
+    function wsPeek(it, n) { if (!wsPop.visible || root.wsPreviewN !== n) { const p = it.mapToItem(stage, 0, 0); root.wsPreviewN = n; root.wsPreviewX = p.x + it.width / 2; root.wsPreviewY = p.y + it.height / 2; } }
+
     PopupWindow {
         id: wsPop
         property real t: root.wsPreviewOpen ? 1 : 0
         Behavior on t { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
         visible: t > 0
         anchor.item: stage
-        anchor.rect: Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
+        anchor.rect: root.vert
+            ? Qt.rect(stage.width + 8, root.wsPreviewY - (wsPop.implicitHeight / Theme.s) / 2, 1, 1)
+            : Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
         anchor.edges: Edges.Top | Edges.Left
         anchor.gravity: Edges.Bottom | Edges.Right
         implicitWidth: Math.ceil(320 * Theme.s)
@@ -588,7 +627,7 @@ PanelWindow {
                 color: Theme.bg
                 border { width: 1; color: Theme.s2 }
                 opacity: wsPop.t
-                transform: Translate { y: -12 * (1 - wsPop.t) }
+                transform: Translate { x: root.vert ? -12 * (1 - wsPop.t) : 0; y: root.vert ? 0 : -12 * (1 - wsPop.t) }
                 HoverHandler { id: wsPopHov }
 
                 Column {
@@ -621,27 +660,9 @@ PanelWindow {
                             Row {
                                 anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
                                 spacing: 10
-                                Image {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 18; height: 18
-                                    visible: status === Image.Ready
-                                    source: parent.parent.icon
-                                    sourceSize: Qt.size(18, 18)
-                                    asynchronous: true
-                                }
-                                Icon {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    visible: !parent.parent.icon
-                                    text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width - 28
-                                    elide: Text.ElideRight
-                                    text: (parent.parent.modelData.title || parent.parent.cls || "window")
-                                    font { family: Theme.ui; pixelSize: 13 }
-                                    color: Theme.fg
-                                }
+                                Image { anchors.verticalCenter: parent.verticalCenter; width: 18; height: 18; visible: status === Image.Ready; source: parent.parent.icon; sourceSize: Qt.size(18, 18); asynchronous: true }
+                                Icon { anchors.verticalCenter: parent.verticalCenter; visible: !parent.parent.icon; text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey }
+                                Text { anchors.verticalCenter: parent.verticalCenter; width: parent.width - 28; elide: Text.ElideRight; text: (parent.parent.modelData.title || parent.parent.cls || "window"); font { family: Theme.ui; pixelSize: 13 } color: Theme.fg }
                             }
                         }
                     }

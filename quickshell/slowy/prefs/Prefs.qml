@@ -597,7 +597,13 @@ PanelWindow {
                         cur: Math.max(0, ["slowy", "vdx"].indexOf(Theme.state.barStyle))
                         onPicked: i => Theme.state.barStyle = ["slowy", "vdx"][i]
                     }
-                    FontPick {
+                    Pick {
+                        visible: Theme.state.barStyle === "slowy"
+                        label: "orient"
+                        opts: ["horizontal", "vertical"]
+                        cur: Math.max(0, ["horizontal", "vertical"].indexOf(Theme.state.barOrient))
+                        onPicked: i => Theme.state.barOrient = ["horizontal", "vertical"][i]
+                    }                    FontPick {
                         label: "bar font"
                         opts: Theme.fontNames
                         cur: Math.max(0, Theme.fontNames.indexOf(Theme.state.barFont))
@@ -726,7 +732,6 @@ PanelWindow {
                         cur: Math.max(0, Theme.schemeNames.indexOf(Theme.state.scheme))
                         onPicked: i => { Theme.state.scheme = Theme.schemeNames[i]; Theme.apply() }
                     }
-                    Toggle { width: 200; text: "light"; on: Theme.light; onFlip: Theme.state.light = !Theme.state.light }
                     Toggle { width: 200; text: "24 hours"; on: Theme.state.clock24; onFlip: Theme.state.clock24 = !Theme.state.clock24 }
                     Toggle { width: 200; text: "blink"; on: Theme.state.blink; onFlip: Theme.state.blink = !Theme.state.blink }
                     Toggle { width: 200; text: "edges"; on: Theme.state.edges; onFlip: Theme.state.edges = !Theme.state.edges }

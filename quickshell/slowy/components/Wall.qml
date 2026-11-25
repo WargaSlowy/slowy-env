@@ -83,8 +83,8 @@ Item {
         readonly property size cropB: root.crop(root.next)
         readonly property real hasA: root.cur.status === Image.Ready ? 1 : 0
         readonly property real hasB: root.next.status === Image.Ready ? 1 : 0
-        readonly property color lo: Theme.light ? Theme.fg : Theme.bg
-        readonly property color hi: Theme.light ? Theme.bg : Theme.fg
+        readonly property color lo: Theme.bg
+        readonly property color hi: Theme.fg
         readonly property color bg: Theme.bg
         readonly property real pitch: root.pitch
         readonly property real bright: root.bright

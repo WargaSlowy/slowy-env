@@ -79,12 +79,16 @@ PanelWindow {
                     }
                     Num {
                         text: it.modelData[0]
+                        font.family: Theme.mono
+                        font.weight: Font.Bold
+                        font.variableAxes: ({})
+                        topPadding: 0
+                        bottomPadding: 0
                         font.pixelSize: it.on ? 168 : 66
                         color: it.on ? Theme.fg : Theme.mute
                         Behavior on font.pixelSize { NumberAnimation { duration: Theme.t; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.glide } }
                         Behavior on color { ColorAnimation { duration: Theme.t } }
-                    }
-                    HoverHandler { onHoveredChanged: if (hovered) root.sel = it.index }
+                    }                    HoverHandler { onHoveredChanged: if (hovered) root.sel = it.index }
                     TapHandler { onTapped: { root.sel = it.index; root.accept(); } }
                 }
             }
@@ -95,18 +99,19 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             width: 460
             height: 460
-            Ring { anchors.fill: parent; n: 60; dot: 10; f: SysStats.uptime / (6 * 3600) }
             Column {
                 anchors.centerIn: parent
                 Lb { anchors.horizontalCenter: parent.horizontalCenter; text: "uptime" }
                 Num {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    topPadding: lead + 10
-                    bottomPadding: lead + 10
+                    font.family: "Bebas Neue"
+                    font.weight: Font.Normal
+                    font.variableAxes: ({})
+                    topPadding: 0
+                    bottomPadding: 0
                     text: `${Math.floor(SysStats.uptime / 3600)}:${String(Math.floor(SysStats.uptime / 60) % 60).padStart(2, "0")}`
                     font.pixelSize: 110
-                }
-                Lb {
+                }                Lb {
                     anchors.horizontalCenter: parent.horizontalCenter
                     readonly property int n: Hyprland.toplevels.values.length
                     text: `${n} window${n === 1 ? "" : "s"} open`

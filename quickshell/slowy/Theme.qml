@@ -12,7 +12,6 @@ Singleton {
 
     // state survives a restart; the lock (a separate process) also reads it
     readonly property alias state: st
-    readonly property bool light: st.light
 
     // colorschemes (prefs · LOOK): four-tone stack for the shell and 16 ANSI for kitty
     readonly property var schemes: ({
@@ -32,20 +31,19 @@ Singleton {
     readonly property var scheme: schemes[st.scheme] ?? schemes.everblush
     readonly property var schemeNames: Object.keys(schemes)
 
-    // light theme: same layout, greys inverted; the scheme colors the dark theme, red comes from it
-    readonly property color bg: light ? "#E9E9E9" : scheme.bg   // background, wallpaper
-    readonly property color s1: light ? "#FFFFFF" : scheme.s1   // bar, panels
-    readonly property color s2: light ? "#F1F1F1" : scheme.s2   // tiles, off
-    readonly property color s3: light ? "#D9D9D9" : scheme.s3   // lines, extinguished dots
-    readonly property color mute: light ? "#B8B8B8" : scheme.mute // inactive
-    readonly property color grey: light ? "#6E6E6E" : scheme.grey // labels, secondary
-    readonly property color fg: light ? "#0B0B0B" : scheme.fg   // text, on, focus
-    readonly property color ink: light ? "#FFFFFF" : scheme.ink  // text on a white tile
+    readonly property color bg: scheme.bg
+    readonly property color s1: scheme.s1
+    readonly property color s2: scheme.s2
+    readonly property color s3: scheme.s3
+    readonly property color mute: scheme.mute
+    readonly property color grey: scheme.grey
+    readonly property color fg: scheme.fg
+    readonly property color ink: scheme.ink
     readonly property color red: scheme.red                     // at most one thing on screen, and only "live"
     readonly property color yellow: "#e5c76b"                  // Everblush yellow
     readonly property color green: "#8ccf7e"                   // Everblush green
-    readonly property color glow: light ? Qt.rgba(0, 0, 0, 0.3) : Qt.rgba(1, 1, 1, 0.6)
-    readonly property color scrim: light ? Qt.rgba(0.91, 0.91, 0.91, 0.8) : Qt.rgba(0, 0, 0, 0.74)
+    readonly property color glow: Qt.rgba(1, 1, 1, 0.6)
+    readonly property color scrim: Qt.rgba(0, 0, 0, 0.74)
 
     readonly property string dot: "Doto"                   // digits and short words, not smaller than 26px
     readonly property string ui: "GeistMono Nerd Font"
@@ -101,7 +99,6 @@ Singleton {
 
         JsonAdapter {
             id: st
-            property bool light: false
             property bool dnd: false  // new ones are not shown, critical ones always
             property int unread: 0    // for the lock
             // ---- what settings (prefs) control ----
@@ -134,6 +131,7 @@ Singleton {
             property var bar: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
+            property string barOrient: "horizontal" // slowy bar: horizontal (top) | vertical (left)
             property string launcherStyle: "classic" // launcher ui: classic | compact | visual
             property string barWs: "circle" // workspace indicator: circle | number
             property int barRadius: 16        // vdx pill corner radius, px; 0 is square
@@ -190,7 +188,7 @@ Singleton {
         path: Quickshell.env("HOME") + "/.config/qtengine.colors"
         printErrors: false
     }
-    // 16 ANSI colors of the selected scheme: pastel for the terminal only. In the light theme 0<->15 and 7<->8 so white is not lost on white
+    // 16 ANSI colors of the selected scheme: pastel for the terminal only
     readonly property var ansi: scheme.ansi
 
     function apply() {
@@ -198,8 +196,7 @@ Singleton {
         // windows with immediate (games, hyprland/rules.lua). When leaving, own values return, allow_tearing false, as in general.lua
         const r = Rules.store, g = r.game;
         const c = x => `"rgb(${hex(x)})"`;
-        // shadow: in the dark theme a barely visible white glow, in the light theme a soft black
-        const shadow = light ? "rgba(0000002E)" : `rgba(${hex(fg)}1A)`;
+        const shadow = `rgba(${hex(fg)}1A)`;
         hypr(`hl.config({ general = { gaps_in = ${g ? 0 : r.gapsIn}, gaps_out = ${g ? 0 : r.gapsOut}, border_size = ${g ? 1 : r.border}, allow_tearing = ${g}, `
            + `col = { active_border = ${c(fg)}, inactive_border = ${c(s3)} } }, `
            + `decoration = { rounding = ${g ? 0 : st.rounding}, blur = { enabled = ${Rules.blurOn} }, shadow = { enabled = ${Rules.shadowOn}, color = "${shadow}" } }, `
@@ -208,7 +205,7 @@ Singleton {
            + `misc = { background_color = ${c(bg)} } })`);
 
         // only the scheme itself: font, tabs, animations, selection and keys stay in ~/.config/kitty/kitty.conf
-        const a = light ? [15, 1, 2, 3, 4, 5, 6, 8, 7, 9, 10, 11, 12, 13, 14, 0].map(i => ansi[i]) : ansi;
+        const a = ansi;
         kitty.setText("# slowy: colorscheme only — Theme.apply() writes, do not edit by hand\n" + [
             ["foreground", fg], ["background", bg], ["cursor", fg]
         ].concat(a.map((c, i) => ["color" + i, c])).map(([k, v]) => `${k} ${typeof v === "string" ? v : v.toString().slice(0, 7).toUpperCase()}`).join("\n") + "\n");

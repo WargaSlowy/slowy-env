@@ -135,8 +135,7 @@ PanelWindow {
                             fillMode: Image.PreserveAspectFit
                             mipmap: true
                             layer.enabled: true
-                            layer.effect: MultiEffect { brightness: Theme.light ? -1 : 1 }
-                        }
+                            layer.effect: MultiEffect { brightness: 1 }                        }
                     }
                     Image {
                         id: photo

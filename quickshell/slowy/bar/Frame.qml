@@ -30,7 +30,9 @@ PanelWindow {
         }
     }
 
-    readonly property real top: Math.ceil(44 * Theme.s)
+    readonly property bool vert: Theme.state.barOrient === "vertical"
+    readonly property real top: vert ? b : Math.ceil(44 * Theme.s)
+    readonly property real leftW: Math.ceil(48 * Theme.s)
     readonly property int b: Math.max(8, Math.round(8 * Theme.s))
     readonly property int r: 18
 
@@ -90,13 +92,14 @@ PanelWindow {
                     path: {
                         const w = root.width, h = root.height;
                         const b = root.b, r = root.r, top = root.top;
+                        const left = root.vert ? root.leftW : b;
                         const ir = Math.max(0, r - b);
                         const or_ = r;
                         const bot = h - b;
                         const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
                         const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
                         let p = `M 0 0 L ${w} 0 L ${w} ${h - or_} Q ${w} ${h} ${w - or_} ${h} L ${or_} ${h} Q 0 ${h} 0 ${h - or_} Z`;
-                        p += ` M ${b + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
+                        p += ` M ${left + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
                         p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
                         if (root.dt > 0.01 && dr > dl + 2) {
                             p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
@@ -104,8 +107,8 @@ PanelWindow {
                             p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
                             p += ` L ${dl} ${bot - drr} Q ${dl} ${bot} ${dl - drr} ${bot}`;
                         }
-                        p += ` L ${b + ir} ${bot} Q ${b} ${bot} ${b} ${bot - ir}`;
-                        p += ` L ${b} ${top + ir} Q ${b} ${top} ${b + ir} ${top} Z`;
+                        p += ` L ${left + ir} ${bot} Q ${left} ${bot} ${left} ${bot - ir}`;
+                        p += ` L ${left} ${top + ir} Q ${left} ${top} ${left + ir} ${top} Z`;
                         return p;
                     }
                 }
@@ -121,11 +124,12 @@ PanelWindow {
                     path: {
                         const w = root.width, h = root.height;
                         const b = root.b, r = root.r, top = root.top;
+                        const left = root.vert ? root.leftW : b;
                         const ir = Math.max(0, r - b);
                         const bot = h - b;
                         const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
                         const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
-                        let p = `M ${b} ${top + ir} Q ${b} ${top} ${b + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
+                        let p = `M ${left} ${top + ir} Q ${left} ${top} ${left + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
                         p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
                         if (root.dt > 0.01 && dr > dl + 2) {
                             p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
@@ -133,7 +137,7 @@ PanelWindow {
                             p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
                             p += ` L ${dl} ${bot - drr} Q ${dl} ${bot} ${dl - drr} ${bot}`;
                         }
-                        p += ` L ${b + ir} ${bot} Q ${b} ${bot} ${b} ${bot - ir} Z`;
+                        p += ` L ${left + ir} ${bot} Q ${left} ${bot} ${left} ${bot - ir} Z`;
                         return p;
                     }
                 }
