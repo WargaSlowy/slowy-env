@@ -1,6 +1,6 @@
 ![image](.github/banner.png)
 
-wayland dotfiles with quickshell
+Wayland dotfiles with Quickshell.
 
 ## Before you install
 

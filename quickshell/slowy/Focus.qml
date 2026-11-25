@@ -2,16 +2,20 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import "focus.js" as FocusMath
 
 // focus / break (pomodoro) timer: driven by the calendar panel (cal/Cal). Alternates focus <-> break
 // when a timer runs to zero, keeping the cycle going. Counts to end, not by ticks, so it does not drift
 // if a tick is late. Lives in memory; a shell restart resets it.
-// focusMinutes / breakMinutes are custom from the calendar UI.
+// Durations are set in hours from the calendar UI and kept as whole minutes here. Each completed
+// session pushes a notify-send so it shows up in the shell's own notification tray.
 Singleton {
     id: root
 
     property int focusMinutes: 25
     property int breakMinutes: 5
+    readonly property real focusHours: focusMinutes / 60
+    readonly property real breakHours: breakMinutes / 60
     property bool isBreak: false
     property bool running: false
     property real end: 0
@@ -28,9 +32,19 @@ Singleton {
 
     Component.onCompleted: root.rest = root.modeMs
 
+    // done fires after the mode flips, so isBreak names the session that starts now
+    onDone: {
+        const body = root.isBreak
+            ? `Fokus ${root.focusMinutes} menit selesai. Istirahat ${root.breakMinutes} menit.`
+            : `Istirahat ${root.breakMinutes} menit selesai. Fokus ${root.focusMinutes} menit.`;
+        Quickshell.execDetached(["notify-send", "-a", "focus", "Pomodoro", body]);
+    }
+
     function set(m) { setFocus(m); }
     function setFocus(m) { focusMinutes = m; if (!isBreak) reset(); }
     function setBreak(m) { breakMinutes = m; if (isBreak) reset(); }
+    function setFocusHours(h) { setFocus(FocusMath.hoursToMinutes(h, 25)); }
+    function setBreakHours(h) { setBreak(FocusMath.hoursToMinutes(h, 5)); }
     function reset() { running = false; rest = modeMs; }
     function toggle() {
         if (running) { rest = left; running = false; return; }

@@ -7,7 +7,7 @@ import qs
 import qs.components
 import qs.services
 
-// lock screen: Doto clock across the full width, date and weather as labels, layout/network/battery and unread count in the corners.
+// lock screen: Bebas Neue clock across the full width, date and weather as labels, layout/network/battery and unread count in the corners.
 // At the bottom an avatar in a ring of dots, the name and a pill field: typed input is white dots, the caret is red. Wrong password makes everything red and the field shakes
 WlSessionLockSurface {
     id: root
@@ -65,9 +65,9 @@ WlSessionLockSurface {
             y: 230
             opacity: root.ph(0, 0.5)
             transform: Translate { y: -40 * (1 - root.ph(0, 0.5)) }
-            Num { text: Theme.hh(clock.date); font.pixelSize: 400 }
-            Num { text: ":"; font.pixelSize: 400; opacity: root.blink || !Theme.state.blink ? 1 : 0.2 }
-            Num { text: Qt.formatTime(clock.date, "mm"); font.pixelSize: 400 }
+            Num { text: Theme.hh(clock.date); font.family: "Bebas Neue"; font.pixelSize: 400 }
+            Num { text: ":"; font.family: "Bebas Neue"; font.pixelSize: 400; opacity: root.blink || !Theme.state.blink ? 1 : 0.2 }
+            Num { text: Qt.formatTime(clock.date, "mm"); font.family: "Bebas Neue"; font.pixelSize: 400 }
         }
         Lb {
             anchors.horizontalCenter: parent.horizontalCenter

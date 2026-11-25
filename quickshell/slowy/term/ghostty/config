@@ -38,5 +38,5 @@ keybind = alt+down=goto_split:down
 
 scrollbar = never
 
-# live colorscheme (glyph: everblush | aphelion)
+# live colorscheme (slowy: everblush | aphelion)
 config-file = ~/.config/demonshot/ghostty.conf

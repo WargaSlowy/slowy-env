@@ -6,7 +6,7 @@ import qs.components
 
 // calendar and focus timer: click the clock notch. A 440 panel at the top center drops from the notch like a dynamic island.
 // Month as a 7×6 grid (today is a white circle); arrows and ←→ change months; click the month to return to today. Below, the timer:
-// the dot ring fills clockwise, minute presets, start/pause (and space), reset. While running, Slowy fills the bottom strip.
+// the dot ring fills clockwise, duration presets in hours, start/pause (and space), reset. While running, Slowy fills the bottom strip.
 // Esc or a click outside closes it
 PanelWindow {
     id: root
@@ -151,18 +151,18 @@ PanelWindow {
                         spacing: 16
                         Row {
                             spacing: 8
-                            Lb { text: "focus · min"; px: 10 }
+                            Lb { text: "focus · h"; px: 10 }
                             TextInput {
                                 id: focusInput
-                                text: String(Focus.focusMinutes)
+                                text: Focus.focusHours.toFixed(2)
                                 font { family: Theme.mono; pixelSize: 13 }
                                 color: Theme.fg
                                 width: 56
-                                inputMethodHints: Qt.ImhDigitsOnly
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
                                 Keys.onPressed: e => {
                                     if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
-                                        Focus.setFocus(parseInt(focusInput.text) || 25);
-                                        focusInput.text = String(Focus.focusMinutes);
+                                        Focus.setFocusHours(focusInput.text);
+                                        focusInput.text = Qt.binding(() => Focus.focusHours.toFixed(2));
                                         e.accepted = true;
                                     }
                                 }
@@ -170,37 +170,55 @@ PanelWindow {
                             Row {
                                 spacing: 8
                                 Repeater {
-                                    model: [15, 25, 45, 60]
+                                    model: [{ label: "25m", h: 25 / 60 }, { label: "1h", h: 1 }, { label: "2h", h: 2 }, { label: "4h", h: 4 }]
                                     Rectangle {
                                         id: chip
-                                        required property int modelData
-                                        readonly property bool on: Focus.focusMinutes === modelData
+                                        required property var modelData
+                                        readonly property bool on: Math.abs(Focus.focusHours - chip.modelData.h) < 0.001
                                         width: 44
                                         height: 44
                                         radius: 22
                                         color: on ? Theme.fg : chipHov.hovered ? Theme.s3 : Theme.s2
-                                        Text { anchors.centerIn: parent; text: chip.modelData; font { family: Theme.mono; pixelSize: 13 } color: chip.on ? Theme.ink : Theme.fg }
+                                        Text { anchors.centerIn: parent; text: chip.modelData.label; font { family: Theme.mono; pixelSize: 13 } color: chip.on ? Theme.ink : Theme.fg }
                                         HoverHandler { id: chipHov; cursorShape: Qt.PointingHandCursor }
-                                        TapHandler { onTapped: Focus.setFocus(chip.modelData) }
+                                        TapHandler { onTapped: Focus.setFocusHours(chip.modelData.h) }
                                     }
                                 }
                             }
                         }
                         Row {
                             spacing: 8
-                            Lb { text: "break · min"; px: 10 }
+                            Lb { text: "break · h"; px: 10 }
                             TextInput {
                                 id: breakInput
-                                text: String(Focus.breakMinutes)
+                                text: Focus.breakHours.toFixed(2)
                                 font { family: Theme.mono; pixelSize: 13 }
                                 color: Theme.fg
                                 width: 56
-                                inputMethodHints: Qt.ImhDigitsOnly
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
                                 Keys.onPressed: e => {
                                     if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
-                                        Focus.setBreak(parseInt(breakInput.text) || 5);
-                                        breakInput.text = String(Focus.breakMinutes);
+                                        Focus.setBreakHours(breakInput.text);
+                                        breakInput.text = Qt.binding(() => Focus.breakHours.toFixed(2));
                                         e.accepted = true;
+                                    }
+                                }
+                            }
+                            Row {
+                                spacing: 8
+                                Repeater {
+                                    model: [{ label: "5m", h: 5 / 60 }, { label: "15m", h: 0.25 }, { label: "30m", h: 0.5 }, { label: "1h", h: 1 }]
+                                    Rectangle {
+                                        id: chip
+                                        required property var modelData
+                                        readonly property bool on: Math.abs(Focus.breakHours - chip.modelData.h) < 0.001
+                                        width: 44
+                                        height: 44
+                                        radius: 22
+                                        color: on ? Theme.fg : chipHov.hovered ? Theme.s3 : Theme.s2
+                                        Text { anchors.centerIn: parent; text: chip.modelData.label; font { family: Theme.mono; pixelSize: 13 } color: chip.on ? Theme.ink : Theme.fg }
+                                        HoverHandler { id: chipHov; cursorShape: Qt.PointingHandCursor }
+                                        TapHandler { onTapped: Focus.setBreakHours(chip.modelData.h) }
                                     }
                                 }
                             }

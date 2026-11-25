@@ -155,7 +155,7 @@ Singleton {
     }
 
     // bento widgets: id to width in cells (3 columns x 3 rows of 220). What does not fit is not shown
-    readonly property var kinds: ({ weather: 1, calendar: 1, cpu: 1, ram: 1, gpu: 1, disk: 1, battery: 1, buds: 1, player: 2, system: 3, cava: 1 })
+    readonly property var kinds: ({ weather: 1, calendar: 1, focus: 1, cpu: 1, ram: 1, gpu: 1, disk: 1, battery: 1, buds: 1, player: 2, system: 3, cava: 1 })
     // deck sections
     readonly property var decks: ["clock", "weather", "perf", "net", "media"]
     // bar tray

@@ -487,12 +487,11 @@ Rectangle {
             y: 36
             spacing: 6
             opacity: root.face
-            Text {
-                text: "SLOWY"
-                font { family: doto.name; pixelSize: 34; weight: Font.Black; variableAxes: ({ "ROND": 100, "wght": 900 }) }
-                topPadding: -0.175 * font.pixelSize
-                bottomPadding: topPadding
-                color: root.fg
+            Image {
+                source: "warga_slowy_logo.svg"
+                width: 44
+                height: 44
+                fillMode: Image.PreserveAspectFit
             }
             Lb { px: 11; text: "login" }
         }

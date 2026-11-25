@@ -106,7 +106,7 @@ PanelWindow {
                 required property var modelData
                 x: modelData.x
                 y: modelData.y
-                sourceComponent: ({ weather: weatherW, calendar: calendarW, cpu: cpuW, ram: ramW, gpu: gpuW, disk: diskW,
+                sourceComponent: ({ weather: weatherW, calendar: calendarW, focus: focusW, cpu: cpuW, ram: ramW, gpu: gpuW, disk: diskW,
                                     battery: batteryW, buds: budsW, player: playerW, system: systemW, cava: cavaW })[modelData.id] ?? null
             }
         }
@@ -163,6 +163,115 @@ PanelWindow {
                                 color: today ? Theme.fg : Theme.grey
                                 Rectangle { visible: parent.today; anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter } width: 10; height: 2; color: Theme.fg }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // focus timer: rounded square, play/reset on top, tap the time to start/pause, step both durations by 15 minutes
+        Component {
+            id: focusW
+            W {
+                Column {
+                    anchors { fill: parent; margins: 20 }
+                    Item {
+                        width: parent.width
+                        height: 28
+                        Lb {
+                            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                            text: Focus.running ? (Focus.isBreak ? "break" : "focus") : Focus.paused ? "paused" : "ready"
+                            color: Focus.running ? Theme.fg : Theme.grey
+                            px: 10
+                        }
+                        Row {
+                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                            spacing: 6
+                            Rectangle {
+                                width: 28; height: 28; radius: 14
+                                color: playHov.hovered ? Theme.s3 : Theme.s2
+                                Icon { anchors.centerIn: parent; text: Focus.running ? "\u{F03E4}" : "\u{F040A}"; color: Theme.fg }
+                                HoverHandler { id: playHov; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: Focus.toggle() }
+                            }
+                            Rectangle {
+                                width: 28; height: 28; radius: 14
+                                color: resetHov.hovered ? Theme.s3 : Theme.s2
+                                Icon { anchors.centerIn: parent; text: "\u{F0450}"; color: Focus.running || Focus.paused ? Theme.fg : Theme.grey }
+                                HoverHandler { id: resetHov; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: Focus.reset() }
+                            }
+                        }
+                    }
+                    Item {
+                        width: parent.width
+                        height: 74
+                        Num {
+                            anchors.centerIn: parent
+                            text: Focus.mmss(Focus.left)
+                            font.pixelSize: 44
+                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: Focus.toggle() }
+                    }
+                    Seg { width: parent.width; height: 6; n: 24; f: Focus.f }
+                    Item { width: 1; height: 14 }
+                    Row {
+                        width: parent.width
+                        spacing: 6
+                        Lb { anchors.verticalCenter: parent.verticalCenter; width: 44; text: "focus"; px: 10 }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28; height: 28; radius: 14
+                            color: minusHov.hovered ? Theme.s3 : Theme.s2
+                            Text { anchors.centerIn: parent; text: "-"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
+                            HoverHandler { id: minusHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: Focus.setFocusHours(Math.max(0.25, Focus.focusHours - 0.25)) }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 52
+                            horizontalAlignment: Text.AlignHCenter
+                            text: Focus.focusHours.toFixed(2)
+                            font { family: Theme.mono; pixelSize: 13 }
+                            color: Theme.fg
+                        }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28; height: 28; radius: 14
+                            color: plusHov.hovered ? Theme.s3 : Theme.s2
+                            Text { anchors.centerIn: parent; text: "+"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
+                            HoverHandler { id: plusHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: Focus.setFocusHours(Focus.focusHours + 0.25) }
+                        }
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 6
+                        Lb { anchors.verticalCenter: parent.verticalCenter; width: 44; text: "break"; px: 10 }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28; height: 28; radius: 14
+                            color: bMinusHov.hovered ? Theme.s3 : Theme.s2
+                            Text { anchors.centerIn: parent; text: "-"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
+                            HoverHandler { id: bMinusHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: Focus.setBreakHours(Math.max(0.25, Focus.breakHours - 0.25)) }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 52
+                            horizontalAlignment: Text.AlignHCenter
+                            text: Focus.breakHours.toFixed(2)
+                            font { family: Theme.mono; pixelSize: 13 }
+                            color: Theme.fg
+                        }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28; height: 28; radius: 14
+                            color: bPlusHov.hovered ? Theme.s3 : Theme.s2
+                            Text { anchors.centerIn: parent; text: "+"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
+                            HoverHandler { id: bPlusHov; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: Focus.setBreakHours(Focus.breakHours + 0.25) }
                         }
                     }
                 }
