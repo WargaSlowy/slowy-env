@@ -603,6 +603,13 @@ PanelWindow {
                         opts: ["horizontal", "vertical"]
                         cur: Math.max(0, ["horizontal", "vertical"].indexOf(Theme.state.barOrient))
                         onPicked: i => Theme.state.barOrient = ["horizontal", "vertical"][i]
+                    }
+                    Pick {
+                        visible: Theme.state.barStyle === "vdx" || Theme.state.barOrient === "horizontal"
+                        label: "position"
+                        opts: ["top", "bottom"]
+                        cur: Math.max(0, ["top", "bottom"].indexOf(Theme.state.barY))
+                        onPicked: i => Theme.state.barY = ["top", "bottom"][i]
                     }                    FontPick {
                         label: "bar font"
                         opts: Theme.fontNames

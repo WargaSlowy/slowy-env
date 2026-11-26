@@ -19,22 +19,26 @@ PanelWindow {
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     mask: Region {
         x: 0
-        y: root.height - 2
+        y: root.deckAtTop ? 0 : root.height - 2
         width: root.width
         height: !root.deckOpen && Theme.state.deckHover && root.deckIds.length > 0 ? 2 : 0
         Region {
             x: Math.max(0, panel.x * Theme.s - 20)
-            y: Math.max(0, panel.y * Theme.s - 20)
+            y: root.deckAtTop ? 0 : Math.max(0, panel.y * Theme.s - 20)
             width: Math.min(root.width, panel.width * Theme.s + 40)
-            height: root.deckOpen ? root.height - Math.max(0, panel.y * Theme.s - 20) : 0
+            height: root.deckOpen ? (root.deckAtTop ? Math.min(root.height, panel.y * Theme.s + panel.height * Theme.s + 20) : root.height - Math.max(0, panel.y * Theme.s - 20)) : 0
         }
     }
 
     readonly property bool vert: Theme.state.barOrient === "vertical"
-    readonly property real top: vert ? b : Math.ceil(44 * Theme.s)
+    readonly property bool bottomBar: !vert && Theme.state.barY === "bottom"
+    readonly property bool deckAtTop: bottomBar
+    readonly property real barH: Math.ceil(44 * Theme.s)
     readonly property real leftW: Math.ceil(48 * Theme.s)
     readonly property int b: Math.max(8, Math.round(8 * Theme.s))
     readonly property int r: 18
+    readonly property real top: (vert || bottomBar) ? b : barH
+    readonly property real botEdge: bottomBar ? h - barH : h - b
 
     property bool deckOpen: false
     property real dt: deckOpen ? 1 : 0
@@ -95,13 +99,21 @@ PanelWindow {
                         const left = root.vert ? root.leftW : b;
                         const ir = Math.max(0, r - b);
                         const or_ = r;
-                        const bot = h - b;
+                        const bot = root.bottomBar ? h - root.barH : h - b;
                         const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
-                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
+                        const dbot = dt + panel.height * Theme.s;
+                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, root.deckAtTop ? dbot - top : bot - dt));
                         let p = `M 0 0 L ${w} 0 L ${w} ${h - or_} Q ${w} ${h} ${w - or_} ${h} L ${or_} ${h} Q 0 ${h} 0 ${h - or_} Z`;
-                        p += ` M ${left + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
+                        p += ` M ${left + ir} ${top}`;
+                        if (root.deckAtTop && root.dt > 0.01 && dr > dl + 2) {
+                            p += ` L ${dl - drr} ${top} Q ${dl} ${top} ${dl} ${top + drr}`;
+                            p += ` L ${dl} ${dbot - drr} Q ${dl} ${dbot} ${dl + drr} ${dbot}`;
+                            p += ` L ${dr - drr} ${dbot} Q ${dr} ${dbot} ${dr} ${dbot - drr}`;
+                            p += ` L ${dr} ${top + drr} Q ${dr} ${top} ${dr + drr} ${top}`;
+                        }
+                        p += ` L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
                         p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
-                        if (root.dt > 0.01 && dr > dl + 2) {
+                        if (!root.deckAtTop && root.dt > 0.01 && dr > dl + 2) {
                             p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
                             p += ` L ${dr} ${dt + drr} Q ${dr} ${dt} ${dr - drr} ${dt}`;
                             p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
@@ -126,12 +138,20 @@ PanelWindow {
                         const b = root.b, r = root.r, top = root.top;
                         const left = root.vert ? root.leftW : b;
                         const ir = Math.max(0, r - b);
-                        const bot = h - b;
+                        const bot = root.bottomBar ? h - root.barH : h - b;
                         const dl = root.deckLeft, dr = root.deckRight, dt = root.deckTop;
-                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, bot - dt));
-                        let p = `M ${left} ${top + ir} Q ${left} ${top} ${left + ir} ${top} L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
+                        const dbot = dt + panel.height * Theme.s;
+                        const drr = Math.min(root.deckRadius, (dr - dl) / 2, Math.max(0, root.deckAtTop ? dbot - top : bot - dt));
+                        let p = `M ${left} ${top + ir} Q ${left} ${top} ${left + ir} ${top}`;
+                        if (root.deckAtTop && root.dt > 0.01 && dr > dl + 2) {
+                            p += ` L ${dl - drr} ${top} Q ${dl} ${top} ${dl} ${top + drr}`;
+                            p += ` L ${dl} ${dbot - drr} Q ${dl} ${dbot} ${dl + drr} ${dbot}`;
+                            p += ` L ${dr - drr} ${dbot} Q ${dr} ${dbot} ${dr} ${dbot - drr}`;
+                            p += ` L ${dr} ${top + drr} Q ${dr} ${top} ${dr + drr} ${top}`;
+                        }
+                        p += ` L ${w - b - ir} ${top} Q ${w - b} ${top} ${w - b} ${top + ir}`;
                         p += ` L ${w - b} ${bot - ir} Q ${w - b} ${bot} ${w - b - ir} ${bot}`;
-                        if (root.dt > 0.01 && dr > dl + 2) {
+                        if (!root.deckAtTop && root.dt > 0.01 && dr > dl + 2) {
                             p += ` L ${dr + drr} ${bot} Q ${dr} ${bot} ${dr} ${bot - drr}`;
                             p += ` L ${dr} ${dt + drr} Q ${dr} ${dt} ${dr - drr} ${dt}`;
                             p += ` L ${dl + drr} ${dt} Q ${dl} ${dt} ${dl} ${dt + drr}`;
@@ -161,12 +181,12 @@ PanelWindow {
         Item {
             id: panel
             anchors.horizontalCenter: parent.horizontalCenter
-            y: (root.height - root.b) / Theme.s - panel.height * root.dt
+            y: root.deckAtTop ? root.b / Theme.s - panel.height * (1 - root.dt) : (root.height - root.b) / Theme.s - panel.height * root.dt
             width: row.width + 52
             height: root.deckH + 52
             opacity: root.dt
             scale: 0.94 + 0.06 * root.dt
-            transformOrigin: Item.Bottom
+            transformOrigin: root.deckAtTop ? Item.Top : Item.Bottom
             readonly property int fb: Math.max(8, Math.round(8 * Theme.s))
 
 

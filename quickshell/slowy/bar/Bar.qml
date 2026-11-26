@@ -20,10 +20,11 @@ PanelWindow {
     signal powerClicked
 
     readonly property bool vert: Theme.state.barOrient === "vertical"
-    anchors.top: true
+    readonly property bool bottom: !vert && Theme.state.barY === "bottom"
+    anchors.top: !bottom
     anchors.left: true
     anchors.right: !vert
-    anchors.bottom: vert
+    anchors.bottom: vert || bottom
     implicitHeight: vert ? 0 : Math.ceil(48 * Theme.s)
     implicitWidth: vert ? Math.ceil(48 * Theme.s) : 0
     color: "transparent"
@@ -514,7 +515,9 @@ PanelWindow {
         anchor.item: stage
         anchor.rect: root.vert
             ? Qt.rect(stage.width + 8, root.popY - (pop.implicitHeight / Theme.s) / 2, 1, 1)
-            : Qt.rect(root.popX - (pop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
+            : (root.bottom
+                ? Qt.rect(root.popX - (pop.implicitWidth / Theme.s) / 2, -(pop.implicitHeight / Theme.s) - 8, 1, 1)
+                : Qt.rect(root.popX - (pop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1))
         anchor.edges: Edges.Top | Edges.Left
         anchor.gravity: Edges.Bottom | Edges.Right
         implicitWidth: Math.ceil(440 * Theme.s)
@@ -530,7 +533,7 @@ PanelWindow {
                 color: Theme.bg
                 border { width: 1; color: Theme.s2 }
                 opacity: pop.t
-                transform: Translate { x: root.vert ? -16 * (1 - pop.t) : 0; y: root.vert ? 0 : -16 * (1 - pop.t) }
+                transform: Translate { x: root.vert ? -16 * (1 - pop.t) : 0; y: root.vert ? 0 : (root.bottom ? 16 * (1 - pop.t) : -16 * (1 - pop.t)) }
                 HoverHandler { id: popHov }
 
                 Column {
@@ -611,7 +614,9 @@ PanelWindow {
         anchor.item: stage
         anchor.rect: root.vert
             ? Qt.rect(stage.width + 8, root.wsPreviewY - (wsPop.implicitHeight / Theme.s) / 2, 1, 1)
-            : Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1)
+            : (root.bottom
+                ? Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, -(wsPop.implicitHeight / Theme.s) - 8, 1, 1)
+                : Qt.rect(root.wsPreviewX - (wsPop.implicitWidth / Theme.s) / 2, stage.height + 8, 1, 1))
         anchor.edges: Edges.Top | Edges.Left
         anchor.gravity: Edges.Bottom | Edges.Right
         implicitWidth: Math.ceil(320 * Theme.s)
@@ -627,7 +632,7 @@ PanelWindow {
                 color: Theme.bg
                 border { width: 1; color: Theme.s2 }
                 opacity: wsPop.t
-                transform: Translate { x: root.vert ? -12 * (1 - wsPop.t) : 0; y: root.vert ? 0 : -12 * (1 - wsPop.t) }
+                transform: Translate { x: root.vert ? -12 * (1 - wsPop.t) : 0; y: root.vert ? 0 : (root.bottom ? 12 * (1 - wsPop.t) : -12 * (1 - wsPop.t)) }
                 HoverHandler { id: wsPopHov }
 
                 Column {

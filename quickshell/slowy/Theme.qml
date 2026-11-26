@@ -132,6 +132,7 @@ Singleton {
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
             property string barOrient: "horizontal" // slowy bar: horizontal (top) | vertical (left)
+            property string barY: "top" // horizontal bar edge: top | bottom
             property string launcherStyle: "classic" // launcher ui: classic | compact | visual
             property string barWs: "circle" // workspace indicator: circle | number
             property int barRadius: 16        // vdx pill corner radius, px; 0 is square

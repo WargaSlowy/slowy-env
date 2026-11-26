@@ -32,6 +32,7 @@ PanelWindow {
         target: Notes
         function onReceived(n) {
             if (Theme.state.dnd && n.urgency !== NotificationUrgency.Critical) return;
+            Quickshell.execDetached(["pw-play", "/home/arfyslowy/Downloads/notification_sound.wav"]);
             root.show(n);
         }
     }

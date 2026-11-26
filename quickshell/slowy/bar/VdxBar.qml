@@ -19,8 +19,12 @@ PanelWindow {
     signal trayClicked
     signal powerClicked
 
+    readonly property bool atBottom: Theme.state.barY === "bottom"
     // top/left/right only: with bottom anchored Hyprland ignores the exclusive zone and windows sit under the pill
-    anchors { top: true; left: true; right: true }
+    anchors.top: !atBottom
+    anchors.bottom: atBottom
+    anchors.left: true
+    anchors.right: true
     implicitHeight: screen?.height ?? 1080
     visible: Theme.state.barStyle === "vdx"
     color: "transparent"
@@ -90,7 +94,7 @@ PanelWindow {
     Rectangle {
         id: shape
         anchors.horizontalCenter: parent.horizontalCenter
-        y: 8
+        y: root.atBottom ? root.height - height - 8 : 8
         width: root.expanded ? Theme.state.hubWidth : Math.max(110, compact.implicitWidth + 28)
         height: root.expanded ? Math.min(hubRoot.implicitHeight + 24, (screen?.height ?? 1080) - 32) : Theme.state.pillHeight
         radius: root.expanded ? Math.min(Theme.state.barRadius * 1.5, width / 2) : Math.min(Theme.state.barRadius, Theme.state.pillHeight / 2)
@@ -265,15 +269,19 @@ PanelWindow {
         // the open island: vdx's hub blocks, Slowy's own content
         Column {
             id: hubRoot
-            anchors { top: parent.top; horizontalCenter: parent.horizontalCenter; topMargin: 12 }
+            anchors.top: root.atBottom ? undefined : parent.top
+            anchors.bottom: root.atBottom ? parent.bottom : undefined
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.topMargin: root.atBottom ? 0 : 12
+            anchors.bottomMargin: root.atBottom ? 12 : 0
             width: parent.width - 24
             spacing: 8
             opacity: root.expanded ? 1 : 0
             visible: opacity > 0
             scale: root.expanded ? 1 : 0.94
-            transformOrigin: Item.Top
+            transformOrigin: root.atBottom ? Item.Bottom : Item.Top
             transform: Translate {
-                y: root.expanded ? 0 : -8
+                y: root.expanded ? 0 : (root.atBottom ? 8 : -8)
                 Behavior on y {
                     SequentialAnimation {
                         PauseAnimation { duration: root.expanded ? 30 : 0 }

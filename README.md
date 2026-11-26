@@ -40,6 +40,32 @@ For Hyprland and Quickshell, check their official docs since the setup can vary 
 
 After installing everything, make sure the services you need are running, like NetworkManager and Bluetooth.
 
+## Installation
+
+1. Clone this repo:
+
+```bash
+git clone https://github.com/WargaSlowy/slowy-env.git
+cd slowy-env
+```
+
+2. Install the minimal requirements. On Arch Linux, you can use the included script:
+
+```bash
+./install.sh
+```
+
+For other distros, check the [Install the requirements](#install-the-requirements) section above.
+
+3. Link the Quickshell config to your config folder:
+
+```bash
+mkdir -p ~/.config/quickshell
+ln -s "$(pwd)/quickshell/slowy" ~/.config/quickshell/slowy
+```
+
+4. Take a look through the config and adjust anything that depends on your system, like paths, fonts, wallpapers, or monitor setup.
+
 ## Reference / inspiration
 
 This config is based on and inspired by [Nebelung-cloud/glyph-rice](https://github.com/Nebelung-cloud/glyph-rice)
