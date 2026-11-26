@@ -1107,17 +1107,27 @@ PanelWindow {
 
             Row {
                 spacing: 50
-                Item {
+                Image {
                     width: 260
                     height: 260
-                    Ring { anchors.fill: parent; n: 16; dot: 14; f: 1 }
-                    Rectangle { anchors.centerIn: parent; width: 52; height: 52; radius: 26; color: Theme.fg }
+                    source: "../assets/warga_slowy_logo.svg"
+                    sourceSize: Qt.size(260, 260)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 18
                     Lb { text: "running now" }
-                    Num { text: root.meta.name ?? "SLOWY"; font.pixelSize: 140 }
+                    Num {
+                        text: root.meta.name ?? "SLOWY"
+                        font.family: "Bebas Neue"
+                        font.weight: Font.Normal
+                        font.variableAxes: ({})
+                        topPadding: 0
+                        bottomPadding: 0
+                        font.pixelSize: 140
+                    }
                     Lb { text: root.meta.tagline ?? "" }
                 }
             }
@@ -1162,16 +1172,22 @@ PanelWindow {
 
             Row {
                 spacing: 50
-                Item {
+                Image {
                     width: 260
                     height: 260
-                    Ring { anchors.fill: parent; n: 16; dot: 14; f: root.login === "slowy" ? 1 : 0.4 }
-                    Rectangle { anchors.centerIn: parent; width: 52; height: 52; radius: 26; color: root.login === "slowy" ? Theme.fg : Theme.mute }
+                    source: "../assets/warga_slowy_logo.svg"
+                    sourceSize: Qt.size(260, 260)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
                 Column {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 16
-                    Lb { text: "display manager" }
+                    Text {
+                        text: "display manager"
+                        font { family: "Bebas Neue"; pixelSize: 64 }
+                        color: Theme.fg
+                    }
                     Pick {
                         label: "login"
                         opts: ["default", "slowy"]
