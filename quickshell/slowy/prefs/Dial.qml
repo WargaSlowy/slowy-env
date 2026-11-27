@@ -2,7 +2,7 @@ import QtQuick
 import qs
 import qs.components
 
-// number as a ring of dots: the fraction from 12 lights clockwise, the head is larger, Doto in the center. Drag around, wheel, left/right for a step.
+// number as a ring of dots: the fraction from 12 lights clockwise, the head is larger, JetBrains Mono in the center. Drag around, wheel, left/right for a step.
 // While dragging, local v is used (the preview also lives on it); moved(v) goes out once: on release or after 250 ms of silence.
 // live sends on every step (brightness). Own dots, not Ring: its 8 ms per dot wave under the finger looks like lag
 Column {

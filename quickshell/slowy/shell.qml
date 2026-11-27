@@ -59,6 +59,7 @@ ShellRoot {
                 onMarkClicked: launcher.toggle()
                 onTrayClicked: quick.toggle()
                 onPowerClicked: power.visible ? power.close() : power.open()
+                onWifiClicked: { quick.peeked = false; quick.open = true; quick.pick = "wifi"; }
             }
             VdxBar {
                 screen: s.modelData

@@ -45,14 +45,14 @@ Singleton {
     readonly property color glow: Qt.rgba(1, 1, 1, 0.6)
     readonly property color scrim: Qt.rgba(0, 0, 0, 0.74)
 
-    readonly property string dot: "Doto"                   // digits and short words, not smaller than 26px
+    readonly property string dot: "JetBrainsMono Nerd Font" // digits and short words
     readonly property string ui: "GeistMono Nerd Font"
     readonly property string mono: "JetBrainsMono Nerd Font"            // labels in uppercase
     readonly property string nf: "JetBrainsMono Nerd Font" // icons
 
     // fonts offered by the LOOK page for the three home text groups, in picker order
     readonly property var fontNames: [
-        "Doto", "GeistMono Nerd Font", "JetBrainsMono Nerd Font", "0xProto Nerd Font",
+        "JetBrainsMono Nerd Font", "GeistMono Nerd Font", "0xProto Nerd Font",
         "Cartograph CF", "Bebas Neue", "CommitMono Nerd Font", "DepartureMono Nerd Font"
     ]
 
@@ -83,8 +83,16 @@ Singleton {
     // as in Rules: apply() at startup must see slowy.json, not the defaults
     Component.onCompleted: {
         stateFile.waitForJob();
-        if (!Array.isArray(st.widgetSlots) || st.widgetSlots.length !== 9)
+        const raw = stateFile.text();
+        const hasSlots = raw && raw.includes('"widgetSlots"');
+        if (!hasSlots && (!Array.isArray(st.widgetSlots) || st.widgetSlots.length !== 9))
             st.widgetSlots = Slots.migrate(st.widgets ?? [], kinds);
+        if (Array.isArray(st.bar) && !st.bar.includes("clock")) {
+            const i = st.bar.indexOf("wifi");
+            const next = st.bar.slice();
+            next.splice(i >= 0 ? i : 0, 0, "clock");
+            st.bar = next;
+        }
     }
 
     FileView {
@@ -107,7 +115,7 @@ Singleton {
             property bool clock24: true
             property bool blink: true      // clock colon blinks
             property int clockSize: 300    // home clock digits, px
-            property string clockFont: "Doto"                   // home clock digits
+            property string clockFont: "JetBrainsMono Nerd Font"   // home clock digits
             property string greetFont: "GeistMono Nerd Font"     // greeting and name
             property string metaFont: "JetBrainsMono Nerd Font"  // date and notification line
             property string barFont: "JetBrainsMono Nerd Font"   // bar labels
@@ -128,7 +136,7 @@ Singleton {
             property bool quickHover: true // quick settings on hover over the right edge
             property bool deckHover: true  // deck is the panel at the bottom center, slides out on hovering the edge
             property var deck: ["clock", "weather", "perf", "net", "media"] // its sections in order, see decks
-            property var bar: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
+            property var bar: ["layout", "clock", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
             property string barOrient: "horizontal" // slowy bar: horizontal (top) | vertical (left)
@@ -158,7 +166,7 @@ Singleton {
     // deck sections
     readonly property var decks: ["clock", "weather", "perf", "net", "media"]
     // bar tray
-    readonly property var bars: ["layout", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"]
+    readonly property var bars: ["layout", "clock", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"]
 
     // ---- appearance of everything outside the shell. Called only by shell.qml: at startup and on theme change ----
     // hypr inherits from demonshot: monitor, input, idle, night light and motion are set by its Rules (shell.qml), animations come from

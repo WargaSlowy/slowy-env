@@ -8,7 +8,7 @@ import qs
 import qs.components
 
 // screenshot: the screen freezes (grim to a file, the frame below the overlay) and dims; the region is a 1px white frame with dots at the corners
-// and a Doto size, a loupe at the cursor shows pixels as dots in a circle and the colour. Modes are chips in a pill below.
+// and a JetBrains Mono size, a loupe at the cursor shows pixels as dots in a circle and the colour. Modes are chips in a pill below.
 // Shot: the frame flashes white (red for recording), the shot is already in the clipboard and the folder, a card appears in the corner; click to edit (Editor)
 Scope {
     id: root

@@ -8,7 +8,7 @@ import qs.components
 import qs.settings
 import "../slots.js" as Slots
 
-// slowy settings: Super+I. Not a form but objects. On the left a column of Doto words, as in the power menu: the selection is large, with a red
+// slowy settings: Super+I. Not a form but objects. On the left a column of JetBrains Mono words, as in the power menu: the selection is large, with a red
 // dot. On the right the section live: home is a 3 x 3 bento layout, deck is a screen with a panel at the edge, windows is a desktop with gaps,
 // idle is a minute scale along which the screen turns off. Numbers are rings of dots (drag around, wheel), toggles are pills,
 // where white slides out. Up/down switch sections, Tab moves over objects, left/right change, esc closes.
@@ -1363,7 +1363,7 @@ PanelWindow {
         }
     }
 
-    // idle marker: stem to the scale, Doto number and name. Drag along the scale, left/right for one minute; beyond 60 is never (0).
+    // idle marker: stem to the scale, JetBrains Mono number and name. Drag along the scale, left/right for one minute; beyond 60 is never (0).
     // While dragging, local v is used; rules.json and hypridle are updated on release or after 400 ms of silence
     component Mark: Item {
         id: mk

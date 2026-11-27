@@ -18,6 +18,7 @@ PanelWindow {
     signal markClicked
     signal trayClicked
     signal powerClicked
+    signal wifiClicked
 
     readonly property bool vert: Theme.state.barOrient === "vertical"
     readonly property bool bottom: !vert && Theme.state.barY === "bottom"
@@ -162,9 +163,15 @@ PanelWindow {
 
                 Loader {
                     anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: Theme.state.bar.includes("clock") ? root.parts.clock : null
+                    visible: !!sourceComponent
+                }
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
                     sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
                     visible: !!sourceComponent
                     TapHandler { onTapped: root.trayClicked() }
+                    TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.wifiClicked() }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
                 Loader {
@@ -193,7 +200,7 @@ PanelWindow {
                                 required property string modelData
                                 readonly property bool quick: modelData !== "mode" && modelData !== "power"
                                 anchors.verticalCenter: parent.verticalCenter
-                                sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                sourceComponent: (modelData !== "clock" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
                                 visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                                 TapHandler { enabled: partH.quick; onTapped: root.trayClicked() }
                                 HoverHandler { enabled: partH.quick; cursorShape: Qt.PointingHandCursor }
@@ -305,9 +312,15 @@ PanelWindow {
 
                 Loader {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    sourceComponent: Theme.state.bar.includes("clock") ? root.parts.clock : null
+                    visible: !!sourceComponent
+                }
+                Loader {
+                    anchors.horizontalCenter: parent.horizontalCenter
                     sourceComponent: Theme.state.bar.includes("wifi") ? root.parts.wifi : null
                     visible: !!sourceComponent
                     TapHandler { onTapped: root.trayClicked() }
+                    TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.wifiClicked() }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                 }
                 Loader {
@@ -336,7 +349,7 @@ PanelWindow {
                                 required property string modelData
                                 readonly property bool quick: modelData !== "mode" && modelData !== "power"
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                sourceComponent: (modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                sourceComponent: (modelData !== "clock" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
                                 visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                                 TapHandler { enabled: partV.quick; onTapped: root.trayClicked() }
                                 HoverHandler { enabled: partV.quick; cursorShape: Qt.PointingHandCursor }
@@ -354,8 +367,33 @@ PanelWindow {
         }
     }
 
-    readonly property var parts: ({ layout: layoutC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC })
+    readonly property var parts: ({ layout: layoutC, clock: clockC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC })
     Component { id: layoutC; Lb { family: Theme.state.barFont; text: Sys.layout; px: 10 } }
+    Component {
+        id: clockC
+        Item {
+            implicitWidth: root.vert ? 30 : pill.implicitWidth
+            implicitHeight: 26
+            SystemClock { id: clk; precision: SystemClock.Minutes }
+            readonly property bool pom: Focus.running || Focus.paused
+            Rectangle {
+                id: pill
+                anchors.centerIn: parent
+                implicitWidth: root.vert ? 30 : label.implicitWidth + 16
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                Lb {
+                    id: label
+                    anchors.centerIn: parent
+                    family: Theme.state.barFont
+                    px: root.vert ? 8 : 10
+                    color: pom ? Theme.fg : Theme.fade(Theme.fg, 0.85)
+                    text: Qt.formatTime(clk.date, Theme.state.clock24 ? "HH:mm" : "h:mm") + (pom ? "    " + (Focus.isBreak ? "Break: " : "Focus: ") + Focus.mmss(Focus.left) : "")
+                }
+            }
+        }
+    }
     Component {
         id: wifiC
         Item {
@@ -491,7 +529,7 @@ PanelWindow {
 
     property bool batLow: UPower.onBattery && root.bat.percentage < 0.15
     property bool batWarn30: UPower.onBattery && root.bat.percentage <= 0.30
-    onBatWarn30Changed: if (batWarn30) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(root.bat.percentage * 100) + "%"])
+    onBatWarn30Changed: if (batWarn30 && root.bat.percentage > 0.01) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(root.bat.percentage * 100) + "%"])
 
     property real popX: 0
     property real popY: 0

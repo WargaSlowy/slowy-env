@@ -47,7 +47,7 @@ PanelWindow {
     readonly property int count: Math.min(10, Math.max(6, active, ...Hyprland.workspaces.values.filter(w => w.toplevels.values.length).map(w => w.id)))
     readonly property var bat: UPower.displayDevice
     readonly property bool batWarn30: UPower.onBattery && bat.percentage <= 0.30
-    onBatWarn30Changed: if (batWarn30) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(bat.percentage * 100) + "%"])
+    onBatWarn30Changed: if (batWarn30 && bat.percentage > 0.01) Quickshell.execDetached(["notify-send", "-u", "normal", "-i", "battery-caution", "Battery Low", "Baterai tersisa " + Math.round(bat.percentage * 100) + "%"])
     readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
     readonly property var net: wifi?.networks.values.find(n => n.connected) ?? null
 
@@ -196,7 +196,12 @@ PanelWindow {
                     id: clockText
                     anchors.centerIn: parent
                     // a dot keeps the hub reachable when the clock is hidden, as vdx's island still has a face
-                    text: Theme.state.showClock ? Theme.hh(clock.date) + ":" + String(clock.date.getMinutes()).padStart(2, "0") + (Theme.state.clock24 ? "" : clock.date.getHours() < 12 ? " AM" : " PM") : "·"
+                    text: {
+                        if (!Theme.state.showClock) return "·";
+                        const t = Theme.hh(clock.date) + ":" + String(clock.date.getMinutes()).padStart(2, "0") + (Theme.state.clock24 ? "" : clock.date.getHours() < 12 ? " AM" : " PM");
+                        const pom = Focus.running || Focus.paused;
+                        return pom ? t + "    " + (Focus.isBreak ? "Break: " : "Focus: ") + Focus.mmss(Focus.left) : t;
+                    }
                     font { family: Theme.ui; pixelSize: 13; weight: Font.Bold }
                     color: Theme.fg
                 }

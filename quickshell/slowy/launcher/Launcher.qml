@@ -302,7 +302,7 @@ PanelWindow {
                             Row {
                                 spacing: 14
                                 bottomPadding: 18
-                                // Doto letter group: which letters are currently in view
+                                // JetBrains Mono letter group: which letters are currently in view
                                 Num { visible: !!block.modelData.all; anchors.baseline: blab.baseline; text: root.range; font.pixelSize: 34 }
                                 Lb { id: blab; text: block.modelData.head + (block.modelData.sub ? ` · ${block.modelData.sub}` : "") }
                             }

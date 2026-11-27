@@ -188,7 +188,7 @@ magick "$1[0]" -resize "$3" -quality 90 "$2/.$b.jpg" 2>/dev/null && mv "$2/.$b.j
             }
         }
 
-        // Doto number and name
+        // JetBrains Mono number and name
         Column {
             x: 150 - 30 * (1 - root.t)
             y: 110

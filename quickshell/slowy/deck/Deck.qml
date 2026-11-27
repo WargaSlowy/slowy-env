@@ -268,7 +268,7 @@ Scope {
                 }
             }
 
-            // receive/send in Doto and 40 s matrix: receive grows upward from the middle, send (grey) grows downward
+            // receive/send in JetBrains Mono and 40 s matrix: receive grows upward from the middle, send (grey) grows downward
             Component {
                 id: netC
                 Column {
@@ -370,7 +370,7 @@ Scope {
         }
         Lb { anchors.horizontalCenter: parent.horizontalCenter; text: g.label; px: 10 }
     }
-    // speed: arrow, Doto number, unit as a label
+    // speed: arrow, JetBrains Mono number, unit as a label
     component Speed: Row {
         id: sp
         property string icon

@@ -6,7 +6,7 @@ import qs
 import qs.components
 import qs.services
 
-// power menu: Super+Esc. The screen is almost black; on the left a column of Doto words: the selection is large with a red dot, the rest are Mute.
+// power menu: Super+Esc. The screen is almost black; on the left a column of JetBrains Mono words: the selection is large with a red dot, the rest are Mute.
 // up/down smoothly grows and shrinks the word. On the right a ring of 60 dots: uptime (fraction of a six-hour shift)
 PanelWindow {
     id: root

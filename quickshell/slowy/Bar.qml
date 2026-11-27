@@ -289,7 +289,7 @@ PanelWindow {
     }
 
     // ---- battery and power mode: hovering the battery or ticks shows a card below the bar, centered on the
-    // hovered item. Charge in Doto, status, scale; below, modes as circles with ticks: click selects, the item under the
+    // hovered item. Charge in JetBrains Mono, status, scale; below, modes as circles with ticks: click selects, the item under the
     // cursor shows what it does. Leaving both the bar and the card fades it out ----
     property bool batHot: false
     property bool tickHot: false

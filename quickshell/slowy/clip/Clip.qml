@@ -273,7 +273,7 @@ PanelWindow {
         }
     }
 
-    // history row: 48 circle (slowy / thumbnail in dots / the color itself), single-line text, Doto number on the right.
+    // history row: 48 circle (slowy / thumbnail in dots / the color itself), single-line text, JetBrains Mono number on the right.
     // Selected row is a white pill with black text
     component Entry: Rectangle {
         id: row

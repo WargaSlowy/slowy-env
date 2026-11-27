@@ -9,7 +9,7 @@ import qs.components
 // vpn: Super+P. Everything from Clash Verge, as agreed in demonshot: toggles, mode, nodes and ping are items of its own tray (verge is aware),
 // the profile comes from its profiles.yaml, traffic and connections from the core socket (mihomo).
 // Panel 1040 centred. On the left a ring of 60 dots is the tunnel: it glows while System proxy or TUN is on, and the red dot in the centre is live.
-// Below it are the System/TUN pills, mode chips and profile. On the right Doto speed, traffic as a matrix, nodes with ping as segments; the selected one is white
+// Below it are the System/TUN pills, mode chips and profile. On the right JetBrains Mono speed, traffic as a matrix, nodes with ping as segments; the selected one is white
 PanelWindow {
     id: root
 
@@ -550,7 +550,7 @@ PanelWindow {
         }
         TapHandler { onTapped: pill.clicked() }
     }
-    // speed: label and Doto number
+    // speed: label and JetBrains Mono number
     component Stat: Column {
         property string k
         property string v

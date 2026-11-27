@@ -8,7 +8,7 @@ import qs
 import qs.components
 import qs.services
 
-// "home screen" on the bottom layer, transparent: Doto clock, greeting and widget bento. Grid, orb and wallpaper are below it, in Back.
+// "home screen" on the bottom layer, transparent: JetBrains Mono clock, greeting and widget bento. Grid, orb and wallpaper are below it, in Back.
 // When a window opens, everything goes below it automatically. System polling and animations run only while the workspace is empty
 PanelWindow {
     id: root

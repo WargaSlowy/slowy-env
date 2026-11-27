@@ -23,7 +23,7 @@ Rectangle {
     readonly property color fg: "#F2F2F2"
     readonly property color red: "#D71921"
 
-    FontLoader { id: doto; source: "fonts/Doto[ROND,wght].ttf" }
+    // JetBrains Mono replaced with JetBrainsMono Nerd Font
     FontLoader { id: grotesk; source: "fonts/SpaceGrotesk-Regular.otf" }
     FontLoader { id: mono; source: "fonts/SpaceMono-Regular.ttf" }
 
@@ -406,7 +406,7 @@ Rectangle {
                         required property string modelData
                         required property int index
                         text: modelData
-                        font { family: doto.name; pixelSize: 130; weight: Font.Black; variableAxes: ({ "ROND": 100, "wght": 900 }) }
+                        font { family: "JetBrainsMono Nerd Font"; pixelSize: 130; weight: Font.Black }
                         topPadding: -0.175 * font.pixelSize
                         bottomPadding: topPadding
                         color: root.fg
