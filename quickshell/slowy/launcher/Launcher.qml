@@ -55,8 +55,7 @@ PanelWindow {
     // windows only while windows mode is open: otherwise any title change would rebuild the list
     readonly property var wins: !visible || mode !== 2 ? [] : Hyprland.toplevels.values.map(t => {
         const cls = t.lastIpcObject?.class ?? "";
-        const icon = DesktopEntries.heuristicLookup(cls)?.icon;
-        return { name: t.title, src: icon ? Quickshell.iconPath(icon, true) : "", slowy: slowy(cls), extra: cls.toLowerCase(),
+        return { name: t.title, src: Theme.appIcon(cls, t.lastIpcObject?.initialClass, t.appId), slowy: slowy(cls), extra: cls.toLowerCase(),
                  run: () => Hyprland.dispatch(`hl.dsp.focus({ window = "address:${t.address}" })`) };
     })
 

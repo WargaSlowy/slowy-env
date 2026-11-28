@@ -80,6 +80,40 @@ Singleton {
     function hh(d) { const h = d.getHours(); return st.clock24 ? String(h).padStart(2, "0") : String(h % 12 || 12); }
     function hex(c) { return c.toString().slice(1, 7).toUpperCase(); }
 
+    function appIcon(...names) {
+        const seen = new Set();
+        const cand = [];
+        for (const n of names) {
+            if (!n) continue;
+            const s = String(n);
+            for (const v of [s, s.toLowerCase(), s.split(".").pop(), s.split(".").pop().toLowerCase()]) {
+                if (v && !seen.has(v)) { seen.add(v); cand.push(v); }
+            }
+        }
+        const iconOf = e => e?.icon ? (Quickshell.iconPath(e.icon, true) || "") : "";
+        for (const n of cand) {
+            const e = DesktopEntries.heuristicLookup(n) || DesktopEntries.byId(n);
+            const p = iconOf(e);
+            if (p && !p.includes("image-missing")) return p;
+        }
+        const apps = Array.from(DesktopEntries.applications?.values ?? []);
+        for (const n of cand) {
+            const nl = n.toLowerCase();
+            const e = apps.find(a => {
+                const sc = a.startupClass || "";
+                return a.id === n || a.id.toLowerCase() === nl
+                    || sc === n || sc.toLowerCase() === nl;
+            });
+            const p = iconOf(e);
+            if (p && !p.includes("image-missing")) return p;
+        }
+        for (const n of cand) {
+            const p = Quickshell.iconPath(n, true) || "";
+            if (p && !p.includes("image-missing")) return p;
+        }
+        return "";
+    }
+
     // as in Rules: apply() at startup must see slowy.json, not the defaults
     Component.onCompleted: {
         stateFile.waitForJob();
@@ -91,6 +125,12 @@ Singleton {
             const i = st.bar.indexOf("wifi");
             const next = st.bar.slice();
             next.splice(i >= 0 ? i : 0, 0, "clock");
+            st.bar = next;
+        }
+        if (Array.isArray(st.bar) && !st.bar.includes("pkg")) {
+            const i = st.bar.indexOf("wifi");
+            const next = st.bar.slice();
+            next.splice(i >= 0 ? i : 0, 0, "pkg");
             st.bar = next;
         }
     }
@@ -136,7 +176,7 @@ Singleton {
             property bool quickHover: true // quick settings on hover over the right edge
             property bool deckHover: true  // deck is the panel at the bottom center, slides out on hovering the edge
             property var deck: ["clock", "weather", "perf", "net", "media"] // its sections in order, see decks
-            property var bar: ["layout", "clock", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
+            property var bar: ["layout", "clock", "pkg", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"] // bar tray from top to bottom, see bars
             property bool barTitle: true   // window title stacked in the bar
             property string barStyle: "slowy" // bar style: slowy or vdx
             property string barOrient: "horizontal" // slowy bar: horizontal (top) | vertical (left)
@@ -166,7 +206,7 @@ Singleton {
     // deck sections
     readonly property var decks: ["clock", "weather", "perf", "net", "media"]
     // bar tray
-    readonly property var bars: ["layout", "clock", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"]
+    readonly property var bars: ["layout", "clock", "pkg", "wifi", "bluetooth", "sound", "notes", "battery", "mode", "power"]
 
     // ---- appearance of everything outside the shell. Called only by shell.qml: at startup and on theme change ----
     // hypr inherits from demonshot: monitor, input, idle, night light and motion are set by its Rules (shell.qml), animations come from

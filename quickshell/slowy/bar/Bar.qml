@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Networking
 import Quickshell.Services.UPower
 import Quickshell.Wayland
@@ -38,6 +39,19 @@ PanelWindow {
     readonly property var bat: UPower.displayDevice
     readonly property var wifi: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
     readonly property var net: wifi?.networks.values.find(n => n.connected) ?? null
+    property int pkgCount: 0
+
+    Process {
+        id: pkgProc
+        command: ["sh", "-c", "checkupdates 2>/dev/null || true"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const t = text.trim();
+                root.pkgCount = t ? t.split("\n").filter(l => l.length > 0).length : 0;
+            }
+        }
+    }
+    Timer { interval: 1800000; running: true; repeat: true; triggeredOnStart: true; onTriggered: pkgProc.running = true }
 
     function go(ws) { Hyprland.dispatch(`hl.dsp.focus({ workspace = "${ws}" })`); }
 
@@ -145,7 +159,7 @@ PanelWindow {
                         Item {
                             required property var modelData
                             readonly property string cls: modelData.lastIpcObject?.class ?? ""
-                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            readonly property string icon: Theme.appIcon(cls, modelData.lastIpcObject?.initialClass, modelData.appId)
                             width: 18; height: 18
                             Image { anchors.fill: parent; visible: status === Image.Ready; source: parent.icon; sourceSize: Qt.size(18, 18); asynchronous: true }
                             Icon { anchors.centerIn: parent; visible: !parent.icon; text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey }
@@ -164,6 +178,11 @@ PanelWindow {
                 Loader {
                     anchors.verticalCenter: parent.verticalCenter
                     sourceComponent: Theme.state.bar.includes("clock") ? root.parts.clock : null
+                    visible: !!sourceComponent
+                }
+                Loader {
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceComponent: Theme.state.bar.includes("pkg") ? root.parts.pkg : null
                     visible: !!sourceComponent
                 }
                 Loader {
@@ -200,7 +219,7 @@ PanelWindow {
                                 required property string modelData
                                 readonly property bool quick: modelData !== "mode" && modelData !== "power"
                                 anchors.verticalCenter: parent.verticalCenter
-                                sourceComponent: (modelData !== "clock" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                sourceComponent: (modelData !== "clock" && modelData !== "pkg" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
                                 visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                                 TapHandler { enabled: partH.quick; onTapped: root.trayClicked() }
                                 HoverHandler { enabled: partH.quick; cursorShape: Qt.PointingHandCursor }
@@ -297,7 +316,7 @@ PanelWindow {
                         Item {
                             required property var modelData
                             readonly property string cls: modelData.lastIpcObject?.class ?? ""
-                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            readonly property string icon: Theme.appIcon(cls, modelData.lastIpcObject?.initialClass, modelData.appId)
                             width: 18; height: 18
                             Image { anchors.fill: parent; visible: status === Image.Ready; source: parent.icon; sourceSize: Qt.size(18, 18); asynchronous: true }
                             Icon { anchors.centerIn: parent; visible: !parent.icon; text: "\u{F003B}"; font.pixelSize: 14; color: Theme.grey }
@@ -313,6 +332,11 @@ PanelWindow {
                 Loader {
                     anchors.horizontalCenter: parent.horizontalCenter
                     sourceComponent: Theme.state.bar.includes("clock") ? root.parts.clock : null
+                    visible: !!sourceComponent
+                }
+                Loader {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    sourceComponent: Theme.state.bar.includes("pkg") ? root.parts.pkg : null
                     visible: !!sourceComponent
                 }
                 Loader {
@@ -349,7 +373,7 @@ PanelWindow {
                                 required property string modelData
                                 readonly property bool quick: modelData !== "mode" && modelData !== "power"
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                sourceComponent: (modelData !== "clock" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
+                                sourceComponent: (modelData !== "clock" && modelData !== "pkg" && modelData !== "wifi" && modelData !== "sound" && modelData !== "power") ? (root.parts[modelData] ?? null) : null
                                 visible: !!sourceComponent && (modelData !== "battery" || root.bat.isLaptopBattery)
                                 TapHandler { enabled: partV.quick; onTapped: root.trayClicked() }
                                 HoverHandler { enabled: partV.quick; cursorShape: Qt.PointingHandCursor }
@@ -367,7 +391,7 @@ PanelWindow {
         }
     }
 
-    readonly property var parts: ({ layout: layoutC, clock: clockC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC })
+    readonly property var parts: ({ layout: layoutC, clock: clockC, pkg: pkgC, wifi: wifiC, bluetooth: btC, sound: soundC, notes: notesC, battery: batC, mode: modeC, power: powerC })
     Component { id: layoutC; Lb { family: Theme.state.barFont; text: Sys.layout; px: 10 } }
     Component {
         id: clockC
@@ -390,6 +414,39 @@ PanelWindow {
                     px: root.vert ? 8 : 10
                     color: pom ? Theme.fg : Theme.fade(Theme.fg, 0.85)
                     text: Qt.formatTime(clk.date, Theme.state.clock24 ? "HH:mm" : "h:mm") + (pom ? "    " + (Focus.isBreak ? "Break: " : "Focus: ") + Focus.mmss(Focus.left) : "")
+                }
+            }
+        }
+    }
+    Component {
+        id: pkgC
+        Item {
+            implicitWidth: root.vert ? 26 : pp.implicitWidth + 8
+            implicitHeight: root.vert ? 26 : pp.implicitHeight
+            Icon { visible: root.vert; anchors.centerIn: parent; text: "\u{F03D7}"; font.pixelSize: 16; color: root.pkgCount > 0 ? "#c47fd5" : "#8ccf7e" }
+            Rectangle {
+                id: pp
+                visible: !root.vert
+                anchors.centerIn: parent
+                implicitWidth: pkgIconSeg.width + Math.min(pkgLabel.implicitWidth, 72) + 18
+                implicitHeight: 26
+                radius: 13
+                color: Theme.s2
+                clip: true
+                Rectangle {
+                    id: pkgIconSeg
+                    anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                    width: 26; radius: 13; topRightRadius: 0; bottomRightRadius: 0
+                    color: root.pkgCount > 0 ? "#c47fd5" : "#8ccf7e"
+                    Icon { anchors.centerIn: parent; text: "\u{F03D7}"; font.pixelSize: 13; color: Theme.ink }
+                }
+                Lb {
+                    id: pkgLabel
+                    anchors { left: pkgIconSeg.right; leftMargin: 8; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    family: Theme.state.barFont
+                    px: 11
+                    text: root.pkgCount > 0 ? String(root.pkgCount) + " upd" : "✓"
+                    elide: Text.ElideRight
                 }
             }
         }
@@ -687,7 +744,7 @@ PanelWindow {
                             radius: 8
                             color: rowHov.hovered ? Theme.s2 : "transparent"
                             readonly property string cls: modelData.lastIpcObject?.class ?? ""
-                            readonly property string icon: { const e = DesktopEntries.heuristicLookup(cls); return e?.icon ? Quickshell.iconPath(e.icon, true) : ""; }
+                            readonly property string icon: Theme.appIcon(cls, modelData.lastIpcObject?.initialClass, modelData.appId)
                             HoverHandler { id: rowHov; cursorShape: Qt.PointingHandCursor }
                             TapHandler {
                                 onTapped: {

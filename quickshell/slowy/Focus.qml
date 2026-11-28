@@ -10,7 +10,7 @@ import "focus.js" as FocusMath
 Singleton {
     id: root
 
-    property int focusMinutes: 25
+    property int focusMinutes: 30
     property int breakMinutes: 5
     readonly property real focusHours: focusMinutes / 60
     readonly property real breakHours: breakMinutes / 60
@@ -20,6 +20,8 @@ Singleton {
     property real end: 0
     property real rest: 0 // remaining while paused (ms of current mode)
     property real now: Date.now()
+    property bool ntfyEnabled: false
+    property string ntfyTopic: "pomodoro"
     signal done
     signal modeChanged(string mode)
 
@@ -30,11 +32,20 @@ Singleton {
 
     function save() { Qt.callLater(stateFile.writeAdapter); }
 
+    function pushNtfy(title, body) {
+        if (!ntfyEnabled || !ntfyTopic) return;
+        const topic = ntfyTopic.replace(/^https?:\/\/ntfy\.sh\//, "").replace(/^\/+|\/+$/g, "");
+        if (!topic) return;
+        Quickshell.execDetached(["curl", "-fsS", "-H", "Title: " + title, "-d", body, "https://ntfy.sh/" + topic]);
+    }
+
     function finishBreak() {
         running = false;
         isBreak = false;
         rest = focusMinutes * 60000;
-        Quickshell.execDetached(["notify-send", "-a", "focus", "Pomodoro", `Istirahat ${breakMinutes} menit selesai.`]);
+        const msg = `Istirahat ${breakMinutes} menit selesai.`;
+        Quickshell.execDetached(["notify-send", "-a", "focus", "Pomodoro", msg]);
+        pushNtfy("Pomodoro", msg);
         done();
         sync();
     }
@@ -84,6 +95,8 @@ Singleton {
         running = st.running;
         end = st.end;
         rest = st.rest > 0 ? st.rest : modeMs;
+        ntfyEnabled = st.ntfyEnabled;
+        ntfyTopic = st.ntfyTopic || "pomodoro";
         restore();
     }
 
@@ -96,12 +109,14 @@ Singleton {
         onLoadFailed: err => { if (err === FileViewError.FileNotFound) writeAdapter(); }
         JsonAdapter {
             id: st
-            property int focusMinutes: 25
+            property int focusMinutes: 30
             property int breakMinutes: 5
             property bool isBreak: false
             property bool running: false
             property double end: 0
             property double rest: 0
+            property bool ntfyEnabled: false
+            property string ntfyTopic: "pomodoro"
         }
     }
 
@@ -112,13 +127,23 @@ Singleton {
         st.running = running;
         st.end = end;
         st.rest = rest;
+        st.ntfyEnabled = ntfyEnabled;
+        st.ntfyTopic = ntfyTopic;
         save();
     }
 
     function clampMin(m) { m = Math.round(Number(m)); return Number.isFinite(m) ? Math.max(1, Math.min(24 * 60, m)) : 1; }
     function set(m) { setFocus(m); }
-    function setFocus(m) { focusMinutes = clampMin(m); if (!isBreak) reset(); else sync(); }
-    function setBreak(m) { breakMinutes = clampMin(m); if (isBreak) reset(); else sync(); }
+    function setFocus(m) {
+        if (running || paused) return;
+        focusMinutes = clampMin(m);
+        if (!isBreak) reset(); else sync();
+    }
+    function setBreak(m) {
+        if (running || paused) return;
+        breakMinutes = clampMin(m);
+        if (isBreak) reset(); else sync();
+    }
     function setFocusHours(h) { setFocus(FocusMath.hoursToMinutes(h, 25)); }
     function setBreakHours(h) { setBreak(FocusMath.hoursToMinutes(h, 5)); }
     function reset() { running = false; rest = modeMs; sync(); }

@@ -169,10 +169,14 @@ PanelWindow {
             }
         }
 
-        // focus timer: rounded square, play/reset on top, tap the time to start/pause, step both durations by 15 minutes
+        // focus timer: right-click to configure ntfy push
         Component {
             id: focusW
             W {
+                id: fw
+                property bool ntfyOpen: false
+                TapHandler { acceptedButtons: Qt.RightButton; onTapped: fw.ntfyOpen = !fw.ntfyOpen }
+
                 Column {
                     anchors { fill: parent; margins: 20 }
                     Item {
@@ -226,13 +230,13 @@ PanelWindow {
                             color: minusHov.hovered ? Theme.s3 : Theme.s2
                             Text { anchors.centerIn: parent; text: "-"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
                             HoverHandler { id: minusHov; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Focus.setFocusHours(Math.max(0.25, Focus.focusHours - 0.25)) }
+                            TapHandler { onTapped: Focus.setFocus(Focus.focusMinutes - 1) }
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 52
                             horizontalAlignment: Text.AlignHCenter
-                            text: Focus.focusHours.toFixed(2)
+                            text: String(Focus.focusMinutes)
                             font { family: Theme.mono; pixelSize: 13 }
                             color: Theme.fg
                         }
@@ -242,7 +246,7 @@ PanelWindow {
                             color: plusHov.hovered ? Theme.s3 : Theme.s2
                             Text { anchors.centerIn: parent; text: "+"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
                             HoverHandler { id: plusHov; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Focus.setFocusHours(Focus.focusHours + 0.25) }
+                            TapHandler { onTapped: Focus.setFocus(Focus.focusMinutes + 1) }
                         }
                     }
                     Row {
@@ -255,13 +259,13 @@ PanelWindow {
                             color: bMinusHov.hovered ? Theme.s3 : Theme.s2
                             Text { anchors.centerIn: parent; text: "-"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
                             HoverHandler { id: bMinusHov; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Focus.setBreakHours(Math.max(0.25, Focus.breakHours - 0.25)) }
+                            TapHandler { onTapped: Focus.setBreak(Focus.breakMinutes - 1) }
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             width: 52
                             horizontalAlignment: Text.AlignHCenter
-                            text: Focus.breakHours.toFixed(2)
+                            text: String(Focus.breakMinutes)
                             font { family: Theme.mono; pixelSize: 13 }
                             color: Theme.fg
                         }
@@ -271,7 +275,67 @@ PanelWindow {
                             color: bPlusHov.hovered ? Theme.s3 : Theme.s2
                             Text { anchors.centerIn: parent; text: "+"; font { family: Theme.mono; pixelSize: 16 } color: Theme.fg }
                             HoverHandler { id: bPlusHov; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: Focus.setBreakHours(Focus.breakHours + 0.25) }
+                            TapHandler { onTapped: Focus.setBreak(Focus.breakMinutes + 1) }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: fw.ntfyOpen
+                    anchors.fill: parent
+                    radius: fw.radius
+                    color: Theme.fade(Theme.bg, 0.96)
+                    border { width: 1; color: Theme.s3 }
+                    Column {
+                        anchors { fill: parent; margins: 20 }
+                        spacing: 10
+                        Lb { text: "android push"; px: 10 }
+                        Row {
+                            width: parent.width
+                            spacing: 8
+                            Rectangle {
+                                width: 44; height: 26; radius: 13
+                                color: Focus.ntfyEnabled ? Theme.fg : Theme.s3
+                                Rectangle {
+                                    x: Focus.ntfyEnabled ? parent.width - width - 3 : 3
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 20; height: 20; radius: 10
+                                    color: Focus.ntfyEnabled ? Theme.bg : Theme.fg
+                                }
+                                TapHandler { onTapped: { Focus.ntfyEnabled = !Focus.ntfyEnabled; Focus.sync(); } }
+                            }
+                            Lb { anchors.verticalCenter: parent.verticalCenter; text: Focus.ntfyEnabled ? "ntfy.sh" : "off"; px: 10; color: Theme.grey }
+                        }
+                        Lb { text: "topic"; px: 10; color: Theme.grey }
+                        Rectangle {
+                            width: parent.width; height: 34; radius: 10
+                            color: Theme.s2
+                            border { width: 1; color: topicInput.activeFocus ? Theme.fg : Theme.s3 }
+                            TextInput {
+                                id: topicInput
+                                anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                                verticalAlignment: Text.AlignVCenter
+                                text: Focus.ntfyTopic
+                                font { family: Theme.mono; pixelSize: 13 }
+                                color: Theme.fg
+                                clip: true
+                                onEditingFinished: { Focus.ntfyTopic = text.trim() || "pomodoro"; Focus.sync(); }
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.Wrap
+                            text: "Break selesai dikirim ke ntfy.sh/" + (Focus.ntfyTopic || "pomodoro")
+                            font { family: Theme.mono; pixelSize: 11 }
+                            color: Theme.grey
+                        }
+                        Item { width: 1; height: 8 }
+                        Rectangle {
+                            width: parent.width; height: 30; radius: 10
+                            color: closeNtfy.hovered ? Theme.s3 : Theme.s2
+                            Lb { anchors.centerIn: parent; text: "close"; px: 10 }
+                            HoverHandler { id: closeNtfy; cursorShape: Qt.PointingHandCursor }
+                            TapHandler { onTapped: fw.ntfyOpen = false }
                         }
                     }
                 }

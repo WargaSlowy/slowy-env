@@ -38,7 +38,6 @@ PanelWindow {
     readonly property int b: Math.max(8, Math.round(8 * Theme.s))
     readonly property int r: 18
     readonly property real top: (vert || bottomBar) ? b : barH
-    readonly property real botEdge: bottomBar ? h - barH : h - b
 
     property bool deckOpen: false
     property real dt: deckOpen ? 1 : 0
