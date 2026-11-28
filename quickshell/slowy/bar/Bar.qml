@@ -89,13 +89,13 @@ PanelWindow {
                 Rectangle {
                     anchors.verticalCenter: parent.verticalCenter
                     height: 30
-                    width: wsRowH.implicitWidth + 16
+                    width: wsRowH.implicitWidth + 20
                     radius: 15
                     color: Theme.s1
                     Row {
                         id: wsRowH
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: 8
                         Repeater {
                             model: root.count
                             Item {
@@ -106,11 +106,11 @@ PanelWindow {
                                 readonly property bool on: root.active === n
                                 readonly property bool nums: Theme.state.barWs === "number"
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: nums ? (on ? 42 : 22) : (on ? 40 : 10)
-                                height: nums ? 22 : 10
+                                width: nums ? (on ? 42 : 22) : (on ? 44 : 12)
+                                height: nums ? 22 : 12
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: wsH.nums ? 11 : 5
+                                    radius: wsH.nums ? 11 : 6
                                     color: wsH.nums ? (wsH.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, wsH.occ ? 0.12 : 0.06))
                                                     : (wsH.on ? Theme.fg : wsH.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
                                     Behavior on color { ColorAnimation { duration: Theme.t } }
@@ -257,13 +257,13 @@ PanelWindow {
 
                 Rectangle {
                     width: 30
-                    height: wsColV.implicitHeight + 12
+                    height: wsColV.implicitHeight + 16
                     radius: 15
                     color: Theme.s1
                     Column {
                         id: wsColV
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: 8
                         Repeater {
                             model: root.count
                             Item {
@@ -273,12 +273,12 @@ PanelWindow {
                                 readonly property bool occ: (Hyprland.workspaces.values.find(w => w.id === n)?.toplevels.values.length ?? 0) > 0
                                 readonly property bool on: root.active === n
                                 readonly property bool nums: Theme.state.barWs === "number"
-                                width: nums ? 22 : 10
-                                height: nums ? (on ? 28 : 22) : (on ? 24 : 10)
+                                width: nums ? 22 : 12
+                                height: nums ? (on ? 28 : 22) : (on ? 28 : 12)
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 Rectangle {
                                     anchors.fill: parent
-                                    radius: wsV.nums ? 11 : 5
+                                    radius: wsV.nums ? 11 : 6
                                     color: wsV.nums ? (wsV.on ? Theme.fade(Theme.fg, 0.22) : Theme.fade(Theme.fg, wsV.occ ? 0.12 : 0.06))
                                                     : (wsV.on ? Theme.fg : wsV.occ ? Theme.fade(Theme.fg, 0.55) : Theme.fade(Theme.fg, 0.2))
                                     Behavior on color { ColorAnimation { duration: Theme.t } }

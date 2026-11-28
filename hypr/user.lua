@@ -145,13 +145,13 @@ end
 
 -- Applications
 hl.bind("SUPER + Return", hl.dsp.exec_cmd(vars.terminal))
-hl.bind("SUPER + ALT + Return", hl.dsp.exec_cmd("kitty -1 --class=FloaTerm"))
+hl.bind("SUPER + ALT + Return", hl.dsp.exec_cmd("kitty -1 -d ~ --class=FloaTerm"))
 hl.bind("SUPER + B", hl.dsp.exec_cmd(vars.browser))
 hl.bind("SUPER + E", hl.dsp.exec_cmd("geany"))
 hl.bind("SUPER + F", hl.dsp.exec_cmd(vars.fileExplorer))
-hl.bind("SUPER + Y", hl.dsp.exec_cmd("kitty --hold --name=YaziTerm --class=FloaTerm -e yazi"))
-hl.bind("SUPER + V", hl.dsp.exec_cmd("kitty -e nvim"))
-hl.bind("SUPER + M", hl.dsp.exec_cmd("kitty --name=MusicTerm --class=FloaTerm -e ncmpcpp"))
+hl.bind("SUPER + Y", hl.dsp.exec_cmd("kitty -d ~ --hold --name=YaziTerm --class=FloaTerm -e yazi"))
+hl.bind("SUPER + V", hl.dsp.exec_cmd("kitty -d ~ -e nvim"))
+hl.bind("SUPER + M", hl.dsp.exec_cmd("kitty -d ~ --name=MusicTerm --class=FloaTerm -e ncmpcpp"))
 hl.bind("SUPER + P", hl.dsp.exec_cmd(vars.audioSettings))
 hl.bind("SUPER + T", hl.dsp.exec_cmd("firefox -new-tab https://web.telegram.org/"))
 hl.bind("SUPER + W", hl.dsp.exec_cmd("firefox -new-tab https://web.whatsapp.com/"))
@@ -170,7 +170,7 @@ hl.bind("SUPER + ALT + B", hl.dsp.exec_cmd("blueman-manager"))
 hl.bind("SUPER + ALT + O", function()
     local ws = hl.get_workspace("special:scratch")
     if not ws or #ws:get_windows() == 0 then
-        hl.dispatch(hl.dsp.exec_cmd("kitty -1 --class=bspwm-scratch"))
+        hl.dispatch(hl.dsp.exec_cmd("kitty -1 -d ~ --class=bspwm-scratch"))
     end
     hl.dispatch(hl.dsp.workspace.toggle_special("scratch"))
 end)

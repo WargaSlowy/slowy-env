@@ -146,7 +146,7 @@ Singleton {
     }
     function setFocusHours(h) { setFocus(FocusMath.hoursToMinutes(h, 25)); }
     function setBreakHours(h) { setBreak(FocusMath.hoursToMinutes(h, 5)); }
-    function reset() { running = false; rest = modeMs; sync(); }
+    function reset() { running = false; isBreak = false; rest = focusMinutes * 60000; sync(); }
     function toggle() {
         if (running) { rest = left; running = false; sync(); return; }
         now = Date.now();
